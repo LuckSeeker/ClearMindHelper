@@ -16,7 +16,7 @@ Użytkownicy często nie są pewni, ile alkoholu mogą wypić, zanim stracą kon
 
 - Profil użytkownika
 
-  - Pola wymagane: wzrost, waga, wiek, płeć.
+  - Pola wymagane: wzrost, waga, płeć.
   - Historia picia powiązana z kontem (wszystkie imprezy i wpisy napojów).
 
 - Rozpoczęcie i zarządzanie imprezą
@@ -77,9 +77,9 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
 - US-003
 
   - Tytuł: Uzupełnienie profilu użytkownika
-  - Opis: Jako zalogowany użytkownik chcę uzupełnić wzrost, wagę, wiek i płeć, aby obliczenia BAC były spersonalizowane.
+  - Opis: Jako zalogowany użytkownik chcę uzupełnić wzrost, wagę, i płeć, aby obliczenia BAC były spersonalizowane.
   - Kryteria akceptacji:
-    - Formularz profilu wymaga pól: wzrost (cm), waga (kg), wiek (lata), płeć.
+    - Formularz profilu wymaga pól: wzrost (cm), waga (kg), płeć.
     - Dane walidowane są pod kątem sensownych zakresów (np. waga 30–300 kg).
     - Zmiany zapisywane i wykorzystywane w obliczeniach BAC natychmiast.
 
