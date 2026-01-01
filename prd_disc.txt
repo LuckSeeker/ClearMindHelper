@@ -1,0 +1,44 @@
+<conversation_summary> <decisions> 
+1. Domyślny próg urwania filmu: 1.6‰; później będzie adaptowany na podstawie indywidualnej historii użytkownika i wiedzy eksperckiej. 
+2. Konto użytkownika będzie obowiązkowe (e-mail + hasło); brak 2FA i brak weryfikacji wieku. 
+3. Historia picia będzie przechowywana dla wszystkich imprez i wykorzystywana do kalibracji progów; poziom alkoholu będzie aktualizowany po każdym wpisie. 
+4. Algorytm obliczania BAC: początkowo wzór Widmarka; późniejsze ulepszenia przewidziane w roadmapzie. 
+5. Walidacja wejścia: system będzie natychmiast ostrzegać przy nierealnych ilościach lub zbyt szybkiej konsumpcji. 
+6. Edycja danych: możliwa podczas trwania imprezy (ostatni wpis można edytować); po zakończeniu imprezy edycja zablokowana. 
+7. Powiadomienia: pojedyncza wibracja przy zbliżaniu do progu; po przekroczeniu progu wibracja co 5 minut z komunikatem ostrzegawczym. 
+8. UX wprowadzania napojów: prosty formularz z dwoma polami — ilość w ml i zawartość alkoholu w %. 
+9. Kryteria pomiaru sukcesu: pomiar co miesiąc dla min. 10 użytkowników; spadek urwań o 10% m/m traktowany jako pozytywny sygnał;
+10. Brak wyjątków od ustalonych reguł (np. brak specjalnych ścieżek dla niepełnoletnich). </decisions> 
+
+<prd_planning_summary> 
+Główne wymagania funkcjonalne: 
+- Rejestracja i logowanie konta (e-mail + hasło). 
+- Tworzenie i przechowywanie profilu użytkownika (wzrost, waga, wiek, płeć, historia picia). 
+- Rejestracja spożycia: formularz z dwoma polami — ilość w ml i % ABV; natychmiastowa aktualizacja szacowanego BAC po każdym wpisie. 
+- Obliczanie BAC: implementacja wzoru Widmarka z domyślnymi parametrami; zapisywanie parametrów obliczenia. 
+- System progów i alertów: domyślny próg 1.6‰, adaptacja na bazie historii; powiadomienia wibracyjne zgodnie z regułami (przed próg / po przekroczeniu co 5 min). 
+- Historia imprez: przechowywanie wszystkich imprez, możliwość edycji ostatniego wpisu tylko w trakcie imprezy; brak edycji po zamknięciu imprezy. 
+- Walidacja wejścia: natychmiastowe ostrzeżenia przy nierealnych wartościach lub nadmiernej szybkości spożycia. 
+- Telemetria: zbieranie zdarzeń przy każdym wpisie, edycji, zamknięciu imprezy i oznaczeniu urwania filmu.
+
+Kluczowe historie użytkownika i ścieżki:
+
+Onboard → utworzenie konta → uzupełnienie profilu (wzrost, waga, wiek) → rozpoczęcie imprezy.
+Podczas imprezy: dodaj napój (ml + %), system natychmiast aktualizuje BAC i wskaźnik ryzyka → przy zbliżeniu do progu: pojedyncza wibracja → po przekroczeniu: wibracja co 5 min.
+Edycja: przed zamknięciem imprezy użytkownik edytuje ostatni wpis; po zamknięciu edycja zablokowana, profil może być aktualizowany.
+Po imprezie: użytkownik zaznacza, czy nastąpiło urwanie filmu; zdarzenie zapisane do analityki.
+
+Kryteria sukcesu i pomiar:
+
+Produktowy: spadek odsetka zgłoszonych urwań o ≥10% m/m (mierzone co miesiąc). Metryka: odsetek imprez z zaznaczonym urwaniem filmu. Minimalne zbierane dane: co najmniej 10 użytkowników miesięcznie (zalecane zwiększenie próby dla istotności statystycznej).
+Techniczne: deklarowana precyzja BAC 0.1‰—obecnie bez zewnętrznej walidacji; zapisz jako cel rozwojowy i wymagaj przyszłej walidacji (np. testy z alkomatem).
+Operacyjne: kompletność danych profilu (wymagane pola), procent poprawnie wprowadzonych wpisów (walidacja), czas reakcji alertów.
+
+Implementacyjne i operacyjne założenia:
+
+MVP webowy; brak natywnej aplikacji mobilnej w pierwszej wersji.
+Brak walidacji wieku; aplikacja dostępna również dla użytkowników poniżej 18 lat.
+Brak integracji z urządzeniami zewnętrznymi (alkomaty, smartwatche) w MVP.
+Logika i parametry obliczeń wersjonowane w systemie, by umożliwić retrospektywne analizy.
+</prd_planning_summary>
+

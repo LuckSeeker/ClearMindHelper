@@ -1,0 +1,22 @@
+### Główny problem
+Ludzie na imprezach czasami nie potrafią skontrolować, czy następny kieliszek nie okaże się tym jednym za dużo i nie urwie im się film.
+
+### Najmniejszy zestaw funkcjonalności
+- Zapis ilości wypitego alkoholu podczas imprezy (w mililitrach)
+- Możliwość zmiany procentowej zawartości pitego trunku (np. 40 % dla wódki)
+- Wprowadzenie danych niezbędnych do oszacowania poziomu alkoholu we krwi (wzrost, waga, historia picia, wiek itp.)
+- Szacowanie obecnego poziomu alkoholu
+- Alarmowanie jeśli zbliżamy się do poziomu, który może skończyć się urawniem filmu (na podstawie poprzednich pomiarów lub też z poziomu wiedzy eksperckiej)
+- Możliwość zapisu potrzebnych informacji dla swojego konta (historia picia, wzrost, waga, wiek itp.)
+- Możliwość zaznaczenia, czy impreza skończyła się urwaniem filmu czy nie
+
+### Co NIE wchodzi w zakres MVP
+- Funkcja alarmowania przed możliwym kacem następnego dnia
+- Aplikacja mobilna (na początek tylko web)
+- Dodanie innych czynników jak np. ilość zjedzonego jedzenia czy też wypitych innych płynów
+- Podłączenie aplikacji pod zegarek by czerpać z danych biologicznych (rytm serca, ilość snu, aktywność itp.)
+- Możliwość zaznaczenia, czy impreza skończyła się kacem czy nie
+
+### Kryteria sukcesu
+- Szacowanie poziomu alkoholu we krwi z precyzją 0.1 promila
+- 51 % Użytkowników coraz rzadziej zaznaczaja, że wystąpiło urawnie filmu po imprezie
