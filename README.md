@@ -1,94 +1,190 @@
-# 10x Astro Starter
+# ClearMindHelper
 
-A modern, opinionated starter template for building fast, accessible, and AI-friendly web applications.
+A web application designed to help users track alcohol consumption during social events, estimate their blood alcohol content (BAC), and receive alerts when approaching their personal risk threshold for experiencing a blackout.
+
+## Table of Contents
+
+- [Project Description](#project-description)
+- [Tech Stack](#tech-stack)
+- [Getting Started Locally](#getting-started-locally)
+- [Available Scripts](#available-scripts)
+- [Project Scope](#project-scope)
+- [Project Status](#project-status)
+- [License](#license)
+
+## Project Description
+
+ClearMindHelper addresses a critical gap in personal safety awareness: users often don't know how much alcohol they can consume before losing control and experiencing memory loss. The application provides real-time tracking of consumption, immediate BAC estimation using the Widmark formula, and intelligent alert systems to warn users before and after exceeding their personal risk threshold.
+
+### Key Features (MVP)
+
+- **User Authentication**: Email and password-based registration and login
+- **Personalized Profile**: Height, weight, and gender data for accurate BAC calculations
+- **Party Management**: Start, manage, and close drinking sessions
+- **Drink Logging**: Record alcohol consumption with volume (ml) and ABV (%) for each drink
+- **Real-Time BAC Calculation**: Immediate BAC estimation using the Widmark formula
+- **Smart Alerts**:
+  - Single notification when approaching the threshold
+  - Repeated alerts every 5 minutes after exceeding the threshold (default: 1.6‰)
+- **Input Validation**: Warnings for unrealistic consumption rates or quantities
+- **Party History**: Complete record of past sessions with analytics
+- **Adaptive Thresholds**: Automatic adjustment based on user's drinking history and blackout occurrences
+
+### Target Metrics
+
+- Response time: <2 seconds from drink entry to updated BAC display and alert
+- BAC calculation accuracy: ±0.1‰
 
 ## Tech Stack
 
-- [Astro](https://astro.build/) v5.5.5 - Modern web framework for building fast, content-focused websites
-- [React](https://react.dev/) v19.0.0 - UI library for building interactive components
-- [TypeScript](https://www.typescriptlang.org/) v5 - Type-safe JavaScript
-- [Tailwind CSS](https://tailwindcss.com/) v4.0.17 - Utility-first CSS framework
+### Frontend
 
-## Prerequisites
+- **Astro 5** - Web framework for fast, content-focused sites
+- **React 19** - Interactive components
+- **TypeScript 5** - Static typing for improved code quality
+- **Tailwind CSS 4** - Utility-first CSS framework
+- **Shadcn/ui** - Accessible, customizable UI components
+- **Lucide React** - Icon library
 
-- Node.js v22.14.0 (as specified in `.nvmrc`)
-- npm (comes with Node.js)
+### Backend & Database
 
-## Getting Started
+- **Supabase** - Backend-as-a-service with PostgreSQL, authentication, and APIs
 
-1. Clone the repository:
+### Development Tools
 
-```bash
-git clone https://github.com/przeprogramowani/10x-astro-starter.git
-cd 10x-astro-starter
+- **ESLint** - Code quality and style consistency
+- **Prettier** - Code formatting
+- **TypeScript ESLint** - TypeScript-specific linting
+- **Husky** - Git hooks for automated checks
+
+### DevOps & Hosting
+
+- **GitHub Actions** - CI/CD pipeline
+- **DigitalOcean** - Hosting via Docker containers
+
+## Getting Started Locally
+
+### Prerequisites
+
+- **Node.js 22.14.0** or higher (see [.nvmrc](./.nvmrc))
+- **npm** or **yarn** for package management
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/LuckSeeker/ClearMindHelper.git
+   cd ClearMindHelper
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   npm install
+   ```
+
+3. **Configure environment variables**
+
+   Create a `.env.local` file in the root directory with your Supabase credentials and other required configurations:
+
+   ```
+   PUBLIC_SUPABASE_URL=your_supabase_url
+   PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. **Start the development server**
+
+   ```bash
+   npm run dev
+   ```
+
+   The application will be available at `http://localhost:3000`
+
+### Project Structure
+
 ```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Run the development server:
-
-```bash
-npm run dev
-```
-
-4. Build for production:
-
-```bash
-npm run build
+src/
+├── components/          # Astro and React components
+│   └── ui/             # Shadcn/ui components
+├── layouts/            # Astro page layouts
+├── pages/              # Astro pages and API endpoints
+├── lib/                # Services and utility functions
+├── db/                 # Supabase clients and type definitions
+├── types.ts            # Shared TypeScript types
+├── assets/             # Static internal assets
+└── styles/             # Global CSS and Tailwind configuration
+public/                 # Public static assets
 ```
 
 ## Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix ESLint issues
+### Development
 
-## Project Structure
+- **`npm run dev`** - Start the development server with hot reload
 
-```md
-.
-├── src/
-│   ├── layouts/    # Astro layouts
-│   ├── pages/      # Astro pages
-│   │   └── api/    # API endpoints
-│   ├── components/ # UI components (Astro & React)
-│   └── assets/     # Static assets
-├── public/         # Public assets
-```
+### Production
 
-## AI Development Support
+- **`npm run build`** - Build the project for production
+- **`npm run preview`** - Preview the production build locally
 
-This project is configured with AI development tools to enhance the development experience, providing guidelines for:
+### Code Quality
 
-- Project structure
-- Coding practices
-- Frontend development
-- Styling with Tailwind
-- Accessibility best practices
-- Astro and React guidelines
+- **`npm run lint`** - Check code for linting errors
+- **`npm run lint:fix`** - Automatically fix linting issues
+- **`npm run format`** - Format code using Prettier
+- **`npm run astro`** - Run Astro CLI commands directly
 
-### Cursor IDE
+## Project Scope
 
-The project includes AI rules in `.cursor/rules/` directory that help Cursor IDE understand the project structure and provide better code suggestions.
+### Included in MVP
 
-### GitHub Copilot
+✅ User registration and authentication  
+✅ User profile management (height, weight, gender)  
+✅ Drink tracking and logging during parties  
+✅ Real-time BAC calculation (Widmark formula)  
+✅ Alert system for threshold warnings  
+✅ Party history and analytics  
+✅ Input validation and safety warnings  
+✅ Adaptive user-specific thresholds  
+✅ Event telemetry and analytics logging
 
-AI instructions for GitHub Copilot are available in `.github/copilot-instructions.md`
+### Out of Scope (Future Iterations)
 
-### Windsurf
+❌ Mobile native application  
+❌ Hangover prediction and alerts  
+❌ Additional consumption factors (food, water intake)  
+❌ Device integrations (smartwatches, breathalyzers)  
+❌ Age verification  
+❌ Hangover tracking post-party
 
-The `.windsurfrules` file contains AI configuration for Windsurf.
+## Project Status
 
-## Contributing
+**Status**: 🚀 **In Active Development**
 
-Please follow the AI guidelines and coding practices defined in the AI configuration files when contributing to this project.
+- [x] Requirements and user stories defined (18 user stories)
+- [x] Tech stack selected and initialized
+- [x] Project structure established
+- [ ] Authentication system implementation
+- [ ] Core BAC calculation engine
+- [ ] Alert and notification system
+- [ ] Party management features
+- [ ] Analytics and history tracking
+- [ ] Testing and quality assurance
+- [ ] Production deployment
+
+### 18 Defined User Stories
+
+This project is guided by 18 comprehensive user stories (US-001 to US-018) covering all MVP features, from user registration to threshold customization. See [.ai/prd.md](./.ai/prd.md) for complete user story details and acceptance criteria.
 
 ## License
 
-MIT
+This project is currently under development. License information will be added upon project completion.
+
+---
+
+**Questions or Contributions?**
+
+For detailed information about the project requirements, see [Product Requirements Document](./.ai/prd.md).
+
+For technical stack details, see [Tech Stack Documentation](./.ai/tech-stack.md).
