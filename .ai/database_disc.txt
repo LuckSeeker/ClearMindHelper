@@ -1,0 +1,195 @@
+<conversation_summary> <decisions>
+
+Profile snapshot przechowywany jako pojedyncza kolumna JSONB w tabeli Parties (zawiera: height_cm, weight_kg, gender, captured_at)
+Historia edycji napojów przechowywana jako pojedynczy stan pre-edit (nie pełny audit log array) w kolumnie original_values JSONB tabeli Drinks
+BAC calculations obliczane tylko dla nowego punktu w czasie — poprzednie wpisy BAC pozostają niezmienione, recalculacja jedynie dla edytowanego napoju i jego następników
+Threshold adaptation (US-014): Nowy próg = BAC w ostatnim wpisie imprezy, gdy blackout_marked = true. W następnej imprezie alerty włączają się przy osiągnięciu 90% bieżącego progu
+Alerts management: Pojedynczy rekord Alerts z flagą is_active = true i last_alert_sent_at TIMESTAMP. Backend (cron) co 5 minut wysyła powiadomienia UI, aktualizuje timestamp. Gdy BAC spadnie poniżej progu, is_active = false
+Events telemetry: Minimalny zestaw danych — {event_type, user_id, party_id (nullable), created_at}
+BAC data type: DECIMAL(4,2) (precyzja 0.01‰, zakres 0.00–99.99)
+Gender field: ENUM('M', 'F') (bez 'Other' w MVP)
+BAC granularity: Tylko na drink timestamps (bez interpolacji w stałych intervalach)
+</decisions> <matched_recommendations>
+
+✅ Profile snapshot jako JSONB wspiera US-014 (adaptacja progów) i US-013 (telemetrię) — retrospektywna analiza danych
+✅ Pojedynczy stan pre-edit (original_values) jest wystarczający dla US-006 (edycja) i minimalizuje storage bez utraty integralności
+✅ BAC obliczany na drink timestamps zmniejsza overhead obliczeniowy i przechowywania (O(n drinks) zamiast O(n drinks * n intervals))
+✅ Threshold = peak BAC z ostatniej imprezy to proste, przewidywalne i umożliwia użytkownikowi zrozumienie zmian (algorytm data-driven dla przyszłości)
+✅ Single Alert record + polling to wydajna alternatywa dla tworzenia nowych wierszy co 5 minut (US-011)
+✅ Minimalna telemetria {event_type, user_id, party_id, created_at} spełnia US-013 bez nadmiaru danych
+✅ DECIMAL(4,2) wystarczający dla Widmarka i praktycznych scenariuszy BAC (0.00–0.99‰ realny zakres)
+✅ ENUM('M', 'F') prosty i wystarczający dla MVP; przyszłe wsparcie niestandardowych Widmark constants
+✅ Drink timestamps jedynym punktem obliczeniowym minimalizuje złożoność przy zachowaniu wierności danych
+</matched_recommendations> <database_planning_summary>
+
+Podsumowanie Planowania Bazy Danych ClearMindHelper MVP
+🎯 Główne Wymagania Schematu
+ClearMindHelper wymaga schematu PostgreSQL (Supabase) obsługującego:
+
+Multi-tenant data isolation (każdy użytkownik widzi tylko swoje dane)
+Real-time BAC tracking z alert systemem
+Complete audit trail dla edycji i zdarzeń (US-006, US-013)
+Adaptive threshold system bazujący na historii urwań (US-014)
+Historical data analysis dla przyszłych usprawnień algorytmu
+📊 Kluczowe Encje i Relacje
+Struktura Hierarchiczna:
+Encje Kluczowe:
+1. Users — Uwierzytelnianie
+
+obsługiwane przez Supabase
+
+2. UserProfiles — Dane do obliczeń BAC
+
+user_id (FK), height_cm (INT, CHECK 50–250), weight_kg (DECIMAL, CHECK 30–300), gender (ENUM('M', 'F'))
+profile_snapshot JSONB przechowywany w Parties dla każdej sesji (captured_at zawarte w JSONB)
+3. Parties — Sesje imprezowe
+
+user_id (FK), started_at (TIMESTAMP), ended_at (TIMESTAMP nullable), status (ENUM: 'ongoing', 'closed')
+profile_snapshot (JSONB) — immutable snapshot {height_cm, weight_kg, gender, captured_at}
+bac_estimate_max (DECIMAL 4,2), total_drinks_count (INT), total_ml_consumed (INT) — cache
+blackout_marked (BOOLEAN), blackout_marked_at (TIMESTAMP nullable)
+created_at, updated_at (TIMESTAMP)
+4. Drinks — Wpisy napojów
+
+party_id (FK), user_id (FK, denormalized), volume_ml (INT, CHECK > 0), abv_percent (DECIMAL 3,1, CHECK 0.1–100)
+consumed_at (TIMESTAMP, w obrębie party time range)
+original_values (JSONB nullable) — {volume_ml_before, abv_percent_before} jeśli edytowano
+edited_at (TIMESTAMP nullable), edit_count (INT default 0)
+order_sequence (INT) — ordinal position w party
+5. BACCalculations — Historia szacowań BAC
+
+party_id (FK), user_id (FK), drink_id (FK), calculated_bac (DECIMAL 4,2)
+calculation_timestamp, algorithm_version (Widmark v1, etc.)
+user_profile_snapshot (JSONB) — snapshot profilu w momencie kalkulacji
+time_since_first_drink_minutes (INT), metabolized_alcohol_g (DECIMAL)
+
+6. UserThresholds — Bieżące progi z historią
+
+user_id (FK), threshold_bac (DECIMAL 4,2, default 0.160), is_current (BOOLEAN)
+created_at, reason (ENUM: 'blackout_marked', 'manual_override')
+trigger_party_id (FK nullable) — która impreza spowodowała zmianę (US-014)
+
+7. Alerts — System alertów
+
+party_id (FK), user_id (FK, denormalized), alert_type (ENUM: 'approaching_threshold', 'exceeded_threshold')
+is_active (BOOLEAN) — True gdy user pozostaje powyżej progu
+last_alert_sent_at (TIMESTAMP) — dla logiki powtarzania co 5 minut
+bac_at_alert (DECIMAL 4,2), triggered_at (TIMESTAMP)
+8. Events — Telemetria (US-013)
+
+user_id (FK), party_id (FK nullable), event_type (ENUM: 'drink_added', 'drink_edited', 'party_started', 'party_closed', 'blackout_marked', 'threshold_adjusted')
+created_at (TIMESTAMP)
+⚠️ Bez event_data JSONB (per decyzja: minimalna telemetria)
+⚠️ Sessions: obsługiwane przez Supabase Auth natywnie (auth.refresh_tokens), bez osobnej tabeli
+
+🔐 Bezpieczeństwo i Validacja
+Constraints na BD (CHECK):
+UserProfiles.height_cm: BETWEEN 50 AND 250
+UserProfiles.weight_kg: BETWEEN 30 AND 300
+Drinks.volume_ml: > 0 AND <= 5000
+Drinks.abv_percent: BETWEEN 0.1 AND 100
+BACCalculations.calculated_bac: BETWEEN 0 AND 0.99
+UserThresholds.threshold_bac: BETWEEN 0.08 AND 0.50 (algorytm stability)
+RLS Policies (Supabase) — każda tabela filtruje po user_id:
+- UserProfiles: SELECT/UPDATE WHERE user_id = auth.uid()
+- Parties: SELECT/INSERT/UPDATE WHERE user_id = auth.uid()
+- Drinks: SELECT/UPDATE WHERE party_id IN (SELECT id FROM Parties WHERE user_id = auth.uid())
+- BACCalculations: SELECT WHERE party_id IN (SELECT id FROM Parties WHERE user_id = auth.uid())
+- UserThresholds: SELECT/UPDATE WHERE user_id = auth.uid()
+- Alerts: SELECT WHERE party_id IN (SELECT id FROM Parties WHERE user_id = auth.uid())
+- Events: SELECT WHERE user_id = auth.uid()
+
+📈 Wskaźniki Wydajności
+Indeksy Priorytetowe:
+Tabela	Index	Columns	Use Case
+Parties	Composite	(user_id, status, started_at DESC)	Fetch active party
+Drinks	Composite	(party_id, consumed_at ASC)	List drinks in party
+BACCalculations	Composite	(party_id, created_at DESC)	Latest BAC
+Alerts	Composite	(party_id, is_active, last_alert_sent_at)	5-min polling
+UserThresholds	Composite	(user_id, is_current)	Current threshold
+Events	Composite	(user_id, event_type, created_at DESC)	Analytics
+Optymalizacje:
+Denormalizacja user_id w Drinks dla RLS filtering
+Cache total_drinks_count, total_ml_consumed w Parties (update via trigger/app)
+BAC calculations na drink timestamps (brak interpolacji)
+🛡️ Skalowalność
+Dane na MVP (10k active users):
+~1–2 parties/user/weekend = ~104k–208k parties/year
+~10–20 drinks/party = ~5.2M–20.8M drinks/year
+~1 BAC/drink = ~5.2M–20.8M calculations/year
+Events (minimal) = ~1M–2M/year
+Strategie (przyszłość, nie MVP):
+Partycjonowanie dużych tabel po created_at (monthly/quarterly)
+Read replicas dla analytics
+Redis cache dla active parties + thresholds
+Async background jobs dla threshold recalculation
+
+🔄 Workflow Kluczowych Procesów
+US-005: Dodawanie napoju
+User dodaje napój (volume_ml, abv_percent, consumed_at)
+Utwórz Drink record
+Oblicz BAC (Widmark) dla nowego napoju
+Utwórz BACCalculation
+Sprawdź alerty:
+BAC >= 0.90 * current_threshold → utwórz Alert (approaching)
+BAC >= current_threshold → utwórz/update Alert (exceeded, is_active=true)
+Log Event (event_type: 'drink_added')
+
+US-014: Adaptacja progu po urwaniu
+User zamyka party, ustawia blackout_marked = true
+Backend queries peak_bac z BACCalculations
+Utwórz nowy UserThreshold: threshold_bac = peak_bac, reason = 'blackout_marked', trigger_party_id = party_id, is_current = true
+Aktualizuj poprzedni UserThreshold: is_current = false
+Log Event (event_type: 'threshold_adjusted')
+
+US-011: Powtarzające się alerty co 5 minut
+Cron job co 5 minut uruchamia query: SELECT * FROM Alerts WHERE is_active = true AND last_alert_sent_at < NOW() - INTERVAL '5 minutes'
+Dla każdego rekordu: wyślij powiadomienie UI
+UPDATE Alerts SET last_alert_sent_at = NOW()
+Gdy BAC spadnie (via next drink lub time-based decay), update Alert: is_active = false
+
+US-006: Edycja ostatniego wpisu
+User edytuje drink (ostatni w party)
+Przechowaj original_values: {volume_ml_before, abv_percent_before}, ustaw edited_at, increment edit_count
+Recalculate BAC dla tego napoju + wszystkie następne
+Update all downstream BACCalculations
+Re-check alerts (może się zmienić próg)
+Log Event (event_type: 'drink_edited')
+
+📋 Architektura Danych dla Historii (US-009)
+Historia Imprez wyświetla:
+
+Data startu/konca
+bac_estimate_max (cached w Parties)
+total_ml_consumed (cached)
+Liczba napojów (total_drinks_count)
+blackout_marked status
+Szczegóły imprezy zawierają:
+
+Lista Drinks (party_id) z timestamps, volumes, ABV
+Lista BACCalculations (party_id) z calculated BAC values
+original_values dla każdego edytowanego napoju (US-006 audit trail)
+</database_planning_summary> <unresolved_issues>
+
+⚠️ Jak obsługiwać BAC decay w partiach bez nowych napojów?
+
+Czy BAC powinien być automatycznie recalculowany based na elapsed time (metabolizm 0.015‰/hour)?
+Czy frontendowi pozostawić interpolację na UI tylko dla wizualizacji?
+Rekomendacja: Na MVP — frontendowi interpolować, BAC w BD tylko na drink timestamps. Przyszłość: cron job do periodic decay updates jeśli potrzebna wizualizacja real-time.
+⚠️ Dokąd przechowywać konfigurację walidacji dla US-012?
+
+np. max_volume_per_drink = 2000ml, max_volume_per_5min = X ml
+Rekomendacja: Przechowywać w app config (constants) lub tabeli SystemConfig. Nie MVP — wbudować na sztywno w kod.
+⚠️ Czy User Thresholds powinna mieć ceiling/floor limits?
+
+Decyzja: threshold_bac min 0.08, max 0.50 (suggest CHECK constraint)?
+Rekomendacja: Implementować CHECK constraint na UserThresholds table.
+⚠️ Format i przechowywanie powiadomień wysłanych (US-011)?
+
+Czy logować każde wysłane powiadomienie w Events, czy tylko w Alerts.last_alert_sent_at?
+Rekomendacja: Tylko Alerts.last_alert_sent_at (minimalna telemetria per decyzję). Events logs event-level changes (threshold alert created/updated), nie individual 5-min notifications.
+⚠️ Czy gender field musi obsługiwać NULL (użytkownicy niechcący ujawniać)?
+
+Aktualnie: ENUM('M', 'F') — required field?
+Rekomendacja: Dla MVP wymóg profilu przed imprezą (per US-018). Nullable w przyszłości, wtedy default do female Widmark constant (0.55, bardziej konservatywny).
+</unresolved_issues> </conversation_summary>
