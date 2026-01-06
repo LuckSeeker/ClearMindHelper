@@ -11,33 +11,27 @@ Użytkownicy często nie są pewni, ile alkoholu mogą wypić, zanim stracą kon
 ## 3. Wymagania funkcjonalne
 
 - Rejestracja i logowanie
-
   - Konto obowiązkowe: e-mail + hasło (bez 2FA, bez weryfikacji wieku).
 
 - Profil użytkownika
-
   - Pola wymagane: wzrost, waga, płeć.
   - Historia picia powiązana z kontem (wszystkie imprezy i wpisy napojów).
 
 - Rozpoczęcie i zarządzanie imprezą
-
   - Możliwość rozpoczęcia nowej sesji (imprezy).
   - Podczas trwania imprezy dodawanie napojów: formularz z polami "ilość (ml)" i "% ABV".
   - Edycja: użytkownik może edytować tylko ostatni wpis podczas trwania imprezy; po zamknięciu imprezy edycja zablokowana.
 
 - Obliczanie BAC
-
   - Wersja MVP: implementacja wzoru Widmarka.
   - Aktualizacja szacowanego BAC natychmiast po każdym wpisie.
 
 - Progi i alerty
-
   - Domyślny próg urwania filmu: 1.6‰; mechanizm adaptacji później.
   - Alert przy zbliżeniu do progu: pojedyncza wibracja/powiadomienie.
   - Po przekroczeniu progu: wibracja + komunikat ostrzegawczy co 5 minut.
 
 - Walidacja wejścia
-
   - Natychmiastowe ostrzeżenia przy nierealistycznych ilościach lub zbyt szybkiej konsumpcji (np. > 2000 ml jednocześnie, lub > X ml w krótkim czasie — parametry konfigurowalne).
 
 - Historia imprez i analityka
@@ -58,7 +52,6 @@ Użytkownicy często nie są pewni, ile alkoholu mogą wypić, zanim stracą kon
 Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne i uporządkowane.
 
 - US-001
-
   - Tytuł: Rejestracja konta
   - Opis: Jako nowy użytkownik chcę utworzyć konto (e-mail + hasło), aby zapisywać profile i historię imprez.
   - Kryteria akceptacji:
@@ -67,7 +60,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Konto zapisane w bazie z wymaganymi polami profilu pustymi.
 
 - US-002
-
   - Tytuł: Logowanie
   - Opis: Jako zarejestrowany użytkownik chcę się logować e-mailem i hasłem.
   - Kryteria akceptacji:
@@ -75,7 +67,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Nieprawidłowe dane powodują jednoznaczny błąd (401).
 
 - US-003
-
   - Tytuł: Uzupełnienie profilu użytkownika
   - Opis: Jako zalogowany użytkownik chcę uzupełnić wzrost, wagę, i płeć, aby obliczenia BAC były spersonalizowane.
   - Kryteria akceptacji:
@@ -84,7 +75,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Zmiany zapisywane i wykorzystywane w obliczeniach BAC natychmiast.
 
 - US-004
-
   - Tytuł: Rozpoczęcie imprezy
   - Opis: Jako użytkownik chcę rozpocząć nową sesję imprezową, aby rejestrować napoje w kontekście tej imprezy.
   - Kryteria akceptacji:
@@ -92,7 +82,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Nowa impreza pojawia się w historii jako "trwająca".
 
 - US-005
-
   - Tytuł: Dodawanie napoju (podstawowy przypadek)
   - Opis: Jako użytkownik w trakcie imprezy chcę dodać napój podając ilość w ml i % ABV, aby system zaktualizował szacowany BAC.
   - Kryteria akceptacji:
@@ -101,7 +90,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - System natychmiast przelicza i wyświetla zaktualizowany BAC.
 
 - US-006
-
   - Tytuł: Edycja ostatniego wpisu podczas imprezy
   - Opis: Jako użytkownik chcę edytować ostatni wpis napoju jeśli popełnię błąd, aby korektować obliczenia BAC.
   - Kryteria akceptacji:
@@ -110,7 +98,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Historia zapisuje informację o edycji (kto, kiedy, stare vs nowe).
 
 - US-007
-
   - Tytuł: Zamykanie imprezy
   - Opis: Jako użytkownik chcę zamknąć imprezę, aby zablokować dalsze edycje i zapisać wynik sesji.
   - Kryteria akceptacji:
@@ -118,7 +105,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Po zamknięciu ostatni wpis nie podlega edycji.
 
 - US-008
-
   - Tytuł: Oznaczenie urwania filmu po imprezie
   - Opis: Jako użytkownik chcę zaznaczyć, czy impreza skończyła się urwaniem filmu, aby dane mogły kalibrować progowy model ryzyka.
   - Kryteria akceptacji:
@@ -126,7 +112,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Zaznaczenie zapisuje boolean i timestamp.
 
 - US-009
-
   - Tytuł: Wyświetlanie historii imprez
   - Opis: Jako użytkownik chcę przeglądać swoje poprzednie imprezy i wpisy, aby analizować wzorce picia.
   - Kryteria akceptacji:
@@ -134,7 +119,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Możliwość podejrzenia szczegółowej listy wpisów dla każdej imprezy.
 
 - US-010
-
   - Tytuł: Powiadomienia o zbliżeniu do progu
   - Opis: Jako użytkownik chcę otrzymać alert (wibracja/powiadomienie) gdy mój BAC zbliża się do progu, aby móc zwolnić tempo.
   - Kryteria akceptacji:
@@ -142,14 +126,12 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Powiadomienie jest natychmiastowe i widoczne w interfejsie.
 
 - US-011
-
   - Tytuł: Alert po przekroczeniu progu
   - Opis: Jako użytkownik chcę otrzymać powtarzające się powiadomienia co 5 minut po przekroczeniu progu, aby utrzymać świadomość ryzyka.
   - Kryteria akceptacji:
     - Po przekroczeniu domyślnego progu 1.6‰ powiadomienia powtarzają się co 5 minut.
 
 - US-012
-
   - Tytuł: Walidacja nierealistycznych wartości
   - Opis: Jako użytkownik chcę, aby system ostrzegał przy wprowadzaniu nierealistycznych ilości lub zbyt szybkiej konsumpcji.
   - Kryteria akceptacji:
@@ -157,7 +139,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - System nie blokuje zapisu, ale wymaga dodatkowego potwierdzenia od użytkownika.
 
 - US-013
-
   - Tytuł: Telemetria i zdarzenia analityczne
   - Opis: Jako product manager chcę mieć zapis zdarzeń (dodanie, edycja, zamknięcie, oznaczenie urwania filmu), aby mierzyć skuteczność produktu.
   - Kryteria akceptacji:
@@ -165,7 +146,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Dane do analityki są anonimowe lub agregowane zgodnie z polityką prywatności.
 
 - US-014
-
   - Tytuł: Konfigurowalny próg użytkownika
   - Opis: System na podstawie historii picia powinien dopasowywać próg użytkownika
   - Kryteria akceptacji:
@@ -173,7 +153,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Zmiana progu wpływa na logikę alertów natychmiast.
 
 - US-015
-
   - Tytuł: Bezpieczne uwierzytelnianie (autoryzacja dostępu)
   - Opis: Jako użytkownik chcę bezpiecznie logować się na konto, aby moje dane były chronione.
   - Kryteria akceptacji:
@@ -181,7 +160,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Endpointy chronione za pomocą mechanizmu sesji/tokenu.
 
 - US-016
-
   - Tytuł: Obsługa skrajnych scenariuszy: szybkie spożycie
   - Opis: Jako użytkownik, który szybko pije duże ilości, chcę otrzymać natychmiastowe ostrzeżenie i wskazanie, że spożycie jest niebezpieczne.
   - Kryteria akceptacji:
@@ -189,7 +167,6 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Zdarzenie logowane jako "szybkie_spozycie".
 
 - US-017
-
   - Tytuł: Zmiana ABV przy dodawaniu napoju
   - Opis: Jako użytkownik chcę móc zmienić domyślną zawartość alkoholu (ABV) dla wpisu napoju.
   - Kryteria akceptacji:
@@ -206,12 +183,10 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
 ## 6. Metryki sukcesu
 
 - Produktowe
-
   - Cel: 51% użytkowników raportuje spadek częstotliwości urwań filmu w porównaniu do okresu poprzedniego (mierzone co miesiąc).
   - Wskaźnik krótkoterminowy: spadek odsetka zgłoszonych urwań o ≥10% m/m przy próbie ≥10 aktywnych użytkowników miesięcznie.
 
 - Techniczne
-
   - Dokładność szacowania BAC: cel 0.1‰ (zapisać jako cel rozwojowy wymagający walidacji z alkomatem).
   - Czas reakcji alertów: < 2 sekundy od wpisu napoju do wyświetlenia zaktualizowanego BAC i ewentualnego alertu.
 
