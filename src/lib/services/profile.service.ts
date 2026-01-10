@@ -6,10 +6,11 @@
  * - Creating and updating user profiles (upsert)
  * - Computing profile completeness
  * - Formatting timestamps
+ * - Profile validation for party operations
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
-import type { UpdateUserProfileCommand, UserProfileDTO } from "../../types";
+import type { UpdateUserProfileCommand, UserProfileDTO, UserProfile } from "../../types";
 import { logError, logInfo } from "../logger";
 
 /**
@@ -127,4 +128,67 @@ export async function upsertProfile(
   };
 
   return profileDTO;
+}
+
+/**
+ * Checks if user profile is complete
+ *
+ * A profile is considered complete when all required fields are filled:
+ * - height_cm
+ * - weight_kg
+ * - gender
+ *
+ * @param profile - User profile entity from database (can be null)
+ * @returns True if profile exists and all required fields are filled
+ */
+export function isProfileComplete(profile: UserProfile | null): boolean {
+  if (!profile) return false;
+
+  return profile.height_cm !== null && profile.weight_kg !== null && profile.gender !== null;
+}
+
+/**
+ * Gets list of missing required fields in user profile
+ *
+ * Useful for providing detailed error messages to users about
+ * what information they need to complete before starting a party.
+ *
+ * @param profile - User profile entity from database (can be null)
+ * @returns Array of missing field names
+ */
+export function getMissingFields(profile: UserProfile | null): string[] {
+  if (!profile) return ["height_cm", "weight_kg", "gender"];
+
+  const missing: string[] = [];
+  if (profile.height_cm === null) missing.push("height_cm");
+  if (profile.weight_kg === null) missing.push("weight_kg");
+  if (profile.gender === null) missing.push("gender");
+
+  return missing;
+}
+
+/**
+ * Retrieves raw user profile entity from database
+ *
+ * Similar to getProfile, but returns raw database entity without
+ * DTO transformation. Used internally by party service for creating
+ * profile snapshots.
+ *
+ * @param userId - The authenticated user's UUID
+ * @param supabase - Supabase client instance
+ * @returns Raw UserProfile entity or null if not found
+ * @throws Error if database query fails
+ */
+export async function getUserProfile(userId: string, supabase: SupabaseClient): Promise<UserProfile | null> {
+  const { data: profile, error } = await supabase.from("userprofiles").select("*").eq("user_id", userId).single();
+
+  if (error) {
+    // PGRST116 is "not found" error code in PostgREST
+    if (error.code === "PGRST116") {
+      return null;
+    }
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  return profile;
 }
