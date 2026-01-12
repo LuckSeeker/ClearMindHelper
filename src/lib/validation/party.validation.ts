@@ -84,3 +84,65 @@ export type ClosePartyInput = z.infer<typeof ClosePartySchema>;
  * Type inference for MarkBlackoutSchema
  */
 export type MarkBlackoutInput = z.infer<typeof MarkBlackoutSchema>;
+
+/**
+ * Schema for GET /api/parties query parameters
+ *
+ * Validates:
+ * - page: Positive integer, defaults to 1
+ * - limit: Integer between 1 and 100, defaults to 20
+ * - status: Optional party status filter ('ongoing' | 'closed')
+ * - sort: Sort column ('started_at' | 'bac_estimate_max'), defaults to 'started_at'
+ * - order: Sort order ('asc' | 'desc'), defaults to 'desc'
+ */
+export const PartyListQuerySchema = z.object({
+  page: z.coerce
+    .number({
+      invalid_type_error: "page must be a number",
+    })
+    .int({
+      message: "page must be an integer",
+    })
+    .min(1, {
+      message: "page must be greater than or equal to 1",
+    })
+    .optional()
+    .default(1),
+  limit: z.coerce
+    .number({
+      invalid_type_error: "limit must be a number",
+    })
+    .int({
+      message: "limit must be an integer",
+    })
+    .min(1, {
+      message: "limit must be greater than or equal to 1",
+    })
+    .max(100, {
+      message: "limit must be less than or equal to 100",
+    })
+    .optional()
+    .default(20),
+  status: z
+    .enum(["ongoing", "closed"], {
+      invalid_type_error: "status must be either 'ongoing' or 'closed'",
+    })
+    .optional(),
+  sort: z
+    .enum(["started_at", "bac_estimate_max"], {
+      invalid_type_error: "sort must be either 'started_at' or 'bac_estimate_max'",
+    })
+    .optional()
+    .default("started_at"),
+  order: z
+    .enum(["asc", "desc"], {
+      invalid_type_error: "order must be either 'asc' or 'desc'",
+    })
+    .optional()
+    .default("desc"),
+});
+
+/**
+ * Type inference for PartyListQuerySchema
+ */
+export type PartyListQueryInput = z.infer<typeof PartyListQuerySchema>;

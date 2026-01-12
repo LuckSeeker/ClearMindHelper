@@ -10,7 +10,15 @@
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
-import type { PartyDTO, ProfileSnapshot, Party } from "../../types";
+import type {
+  PartyDTO,
+  ProfileSnapshot,
+  Party,
+  PartyListResponseDTO,
+  PartyListItemDTO,
+  DrinkPreview,
+  PartyStatus,
+} from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
 
@@ -229,4 +237,149 @@ async function logPartyStartedEvent(supabase: SupabaseClient, userId: string, pa
   }
 
   logInfo("Event logged", { userId, partyId, eventType: "party_started" });
+}
+
+/**
+ * Gets paginated list of user's parties with drink previews
+ *
+ * This is the main business logic for GET /api/parties endpoint.
+ * It performs the following steps:
+ * 1. Builds base query with filters (status)
+ * 2. Applies sorting and pagination
+ * 3. Gets total count for pagination metadata
+ * 4. Fetches first 3 drinks for each party
+ * 5. Assembles response with pagination data
+ *
+ * @param supabase - Supabase client instance
+ * @param userId - The authenticated user's UUID
+ * @param filters - Optional filters (status)
+ * @param pagination - Pagination and sorting parameters
+ * @returns PartyListResponseDTO with paginated parties and metadata
+ * @throws Error if database query fails
+ */
+export async function getPartyList(
+  supabase: SupabaseClient,
+  userId: string,
+  filters: {
+    status?: PartyStatus;
+  },
+  pagination: {
+    page: number;
+    limit: number;
+    sort: "started_at" | "bac_estimate_max";
+    order: "asc" | "desc";
+  }
+): Promise<PartyListResponseDTO> {
+  logInfo("Getting party list", { userId, filters, pagination });
+
+  // Step 1: Build base query with user filter
+  let query = supabase.from("parties").select("*", { count: "exact" }).eq("user_id", userId);
+
+  // Apply status filter if provided
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  // Step 2: Apply sorting
+  query = query.order(pagination.sort, { ascending: pagination.order === "asc" });
+
+  // Step 3: Apply pagination
+  const from = (pagination.page - 1) * pagination.limit;
+  const to = from + pagination.limit - 1;
+  query = query.range(from, to);
+
+  // Execute query
+  const { data: parties, error, count } = await query;
+
+  if (error) {
+    logError("Failed to fetch parties", { userId, error: error.message });
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  const totalCount = count ?? 0;
+
+  // Handle empty result
+  if (!parties || parties.length === 0) {
+    logInfo("No parties found", { userId, filters });
+    return {
+      data: [],
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total_count: totalCount,
+        total_pages: 0,
+      },
+    };
+  }
+
+  // Step 4: Fetch first 3 drinks for each party
+  const partyIds = parties.map((p) => p.id);
+  const { data: allDrinks, error: drinksError } = await supabase
+    .from("drinks")
+    .select("id, party_id, volume_ml, abv_percent, consumed_at")
+    .in("party_id", partyIds)
+    .order("consumed_at", { ascending: true });
+
+  if (drinksError) {
+    logError("Failed to fetch drinks preview", { userId, error: drinksError.message });
+    throw new Error(`Database error: ${drinksError.message}`);
+  }
+
+  // Group drinks by party_id and take first 3
+  const drinksByParty = new Map<number, DrinkPreview[]>();
+  if (allDrinks) {
+    for (const drink of allDrinks) {
+      let partyDrinks = drinksByParty.get(drink.party_id);
+      if (!partyDrinks) {
+        partyDrinks = [];
+        drinksByParty.set(drink.party_id, partyDrinks);
+      }
+      if (partyDrinks.length < 3) {
+        partyDrinks.push({
+          id: drink.id,
+          volume_ml: drink.volume_ml,
+          abv_percent: drink.abv_percent,
+          consumed_at: new Date(drink.consumed_at).toISOString(),
+        });
+      }
+    }
+  }
+
+  // Step 5: Transform to DTOs
+  const partyListItems: PartyListItemDTO[] = parties.map((party) => ({
+    id: party.id,
+    user_id: party.user_id,
+    status: party.status,
+    started_at: new Date(party.started_at).toISOString(),
+    ended_at: party.ended_at ? new Date(party.ended_at).toISOString() : null,
+    bac_estimate_max: party.bac_estimate_max,
+    total_drinks_count: party.total_drinks_count,
+    total_ml_consumed: party.total_ml_consumed,
+    blackout_marked: party.blackout_marked,
+    blackout_marked_at: party.blackout_marked_at ? new Date(party.blackout_marked_at).toISOString() : null,
+    profile_snapshot: party.profile_snapshot as unknown as ProfileSnapshot,
+    created_at: party.created_at ? new Date(party.created_at).toISOString() : new Date().toISOString(),
+    updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
+    drinks_preview: drinksByParty.get(party.id) || [],
+  }));
+
+  // Calculate pagination metadata
+  const totalPages = Math.ceil(totalCount / pagination.limit);
+
+  logInfo("Party list retrieved successfully", {
+    userId,
+    count: partyListItems.length,
+    totalCount,
+    totalPages,
+  });
+
+  return {
+    data: partyListItems,
+    pagination: {
+      page: pagination.page,
+      limit: pagination.limit,
+      total_count: totalCount,
+      total_pages: totalPages,
+    },
+  };
 }
