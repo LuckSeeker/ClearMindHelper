@@ -23,6 +23,8 @@ import type {
   DrinkWithBACDTO,
   BACCalculationDTO,
   AlertDTO,
+  ClosePartyCommand,
+  ClosePartyResponseDTO,
 } from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
@@ -278,41 +280,86 @@ export async function getPartyList(
   logInfo("Getting party list", { userId, filters, pagination });
 
   // Step 1: Build base query with user filter
-  let query = supabase.from("parties").select("*", { count: "exact" }).eq("user_id", userId);
+  let countQuery = supabase.from("parties").select("*", { count: "exact", head: true }).eq("user_id", userId);
 
   // Apply status filter if provided
   if (filters.status) {
-    query = query.eq("status", filters.status);
+    countQuery = countQuery.eq("status", filters.status);
   }
 
-  // Step 2: Apply sorting
-  query = query.order(pagination.sort, { ascending: pagination.order === "asc" });
+  // Get total count first
+  const { count, error: countError } = await countQuery;
 
-  // Step 3: Apply pagination
-  const from = (pagination.page - 1) * pagination.limit;
-  const to = from + pagination.limit - 1;
-  query = query.range(from, to);
-
-  // Execute query
-  const { data: parties, error, count } = await query;
-
-  if (error) {
-    logError("Failed to fetch parties", { userId, error: error.message });
-    throw new Error(`Database error: ${error.message}`);
+  if (countError) {
+    logError("Failed to count parties", { userId, error: countError.message });
+    throw new Error(`Database error: ${countError.message}`);
   }
 
   const totalCount = count ?? 0;
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / pagination.limit) : 0;
 
-  // Handle empty result
-  if (!parties || parties.length === 0) {
-    logInfo("No parties found", { userId, filters });
+  // If page is out of range, return empty result immediately
+  if (pagination.page > totalPages && totalPages > 0) {
+    logInfo("Page out of range", { userId, page: pagination.page, totalPages });
     return {
       data: [],
       pagination: {
         page: pagination.page,
         limit: pagination.limit,
         total_count: totalCount,
+        total_pages: totalPages,
+      },
+    };
+  }
+
+  // If no results at all, return empty
+  if (totalCount === 0) {
+    logInfo("No parties found", { userId, filters });
+    return {
+      data: [],
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total_count: 0,
         total_pages: 0,
+      },
+    };
+  }
+
+  // Step 2: Build data query
+  let query = supabase.from("parties").select("*").eq("user_id", userId);
+
+  // Apply status filter
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  // Apply sorting
+  query = query.order(pagination.sort, { ascending: pagination.order === "asc" });
+
+  // Apply pagination
+  const from = (pagination.page - 1) * pagination.limit;
+  const to = from + pagination.limit - 1;
+  query = query.range(from, to);
+
+  // Execute query
+  const { data: parties, error } = await query;
+
+  if (error) {
+    logError("Failed to fetch parties", { userId, error: error.message });
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  // Handle empty result (shouldn't happen after count check, but defensive)
+  if (!parties || parties.length === 0) {
+    logInfo("No parties in page", { userId, page: pagination.page });
+    return {
+      data: [],
+      pagination: {
+        page: pagination.page,
+        limit: pagination.limit,
+        total_count: totalCount,
+        total_pages: totalPages,
       },
     };
   }
@@ -367,9 +414,6 @@ export async function getPartyList(
     updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
     drinks_preview: drinksByParty.get(party.id) || [],
   }));
-
-  // Calculate pagination metadata
-  const totalPages = Math.ceil(totalCount / pagination.limit);
 
   logInfo("Party list retrieved successfully", {
     userId,
@@ -582,4 +626,179 @@ export async function getPartyDetails(
   });
 
   return partyDetail;
+}
+
+/**
+ * Closes an ongoing party session
+ *
+ * This function:
+ * - Verifies the party exists and belongs to the user
+ * - Checks if party is not already closed
+ * - Validates ended_at timestamp (must be after start, not too far in future)
+ * - Updates party status to 'closed' and sets ended_at
+ * - Deactivates all active alerts for this party
+ * - Logs a 'party_closed' event
+ *
+ * @param supabase - Supabase client instance
+ * @param userId - The authenticated user's UUID
+ * @param partyId - The party ID to close
+ * @param command - Close party command with optional ended_at timestamp
+ * @returns ClosePartyResponseDTO with updated party information
+ * @throws Error with specific message for business logic violations:
+ *   - 'PARTY_NOT_FOUND' if party doesn't exist or user doesn't own it
+ *   - 'PARTY_ALREADY_CLOSED' if party is already closed
+ *   - 'INVALID_ENDED_AT' if timestamp validation fails
+ */
+export async function closeParty(
+  supabase: SupabaseClient,
+  userId: string,
+  partyId: number,
+  command: ClosePartyCommand
+): Promise<ClosePartyResponseDTO> {
+  // Step 3a: Fetch party and verify ownership
+  const { data: party, error: fetchError } = await supabase
+    .from("parties")
+    .select("id, user_id, status, started_at, ended_at, bac_estimate_max, total_drinks_count, total_ml_consumed")
+    .eq("id", partyId)
+    .eq("user_id", userId)
+    .single();
+
+  if (fetchError || !party) {
+    logError("Failed to fetch party for closing", {
+      userId,
+      partyId,
+      error: fetchError?.message || "Party not found",
+    });
+    throw new Error("PARTY_NOT_FOUND");
+  }
+
+  // Step 3b: Validate party status
+  if (party.status === "closed") {
+    logInfo("Attempt to close already closed party", {
+      userId,
+      partyId,
+      status: party.status,
+    });
+    throw new Error("PARTY_ALREADY_CLOSED");
+  }
+
+  // Step 3c: Validate ended_at timestamp
+  const endedAt = command.ended_at ? new Date(command.ended_at) : new Date();
+  const startedAt = new Date(party.started_at);
+  const now = new Date();
+
+  // Check if ended_at is not before started_at
+  if (endedAt < startedAt) {
+    logInfo("Invalid ended_at: before party start", {
+      userId,
+      partyId,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+    });
+    throw new Error("INVALID_ENDED_AT");
+  }
+
+  // Check if ended_at is not too far in the past (with 5 min tolerance)
+  const minAllowedTime = new Date(now.getTime() - 5 * 60 * 1000);
+  if (endedAt < minAllowedTime) {
+    logInfo("Invalid ended_at: too far in past", {
+      userId,
+      partyId,
+      endedAt: endedAt.toISOString(),
+      minAllowed: minAllowedTime.toISOString(),
+    });
+    throw new Error("INVALID_ENDED_AT");
+  }
+
+  // Check if ended_at is not in the future (with 5 min tolerance)
+  const maxAllowedTime = new Date(now.getTime() + 5 * 60 * 1000);
+  if (endedAt > maxAllowedTime) {
+    logInfo("Invalid ended_at: too far in future", {
+      userId,
+      partyId,
+      endedAt: endedAt.toISOString(),
+      maxAllowed: maxAllowedTime.toISOString(),
+    });
+    throw new Error("INVALID_ENDED_AT");
+  }
+
+  // Step 3d: Update party
+  const { data: updatedParty, error: updateError } = await supabase
+    .from("parties")
+    .update({
+      status: "closed" as const,
+      ended_at: endedAt.toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", partyId)
+    .eq("user_id", userId)
+    .select("id, status, started_at, ended_at, bac_estimate_max, total_drinks_count, total_ml_consumed")
+    .single();
+
+  if (updateError || !updatedParty) {
+    logError("Failed to update party status to closed", {
+      userId,
+      partyId,
+      error: updateError?.message || "Update failed",
+    });
+    throw updateError || new Error("Failed to update party");
+  }
+
+  // Step 3e: Deactivate all alerts (non-critical - don't throw on error)
+  const { error: alertsError } = await supabase
+    .from("alerts")
+    .update({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("party_id", partyId)
+    .eq("user_id", userId)
+    .eq("is_active", true);
+
+  if (alertsError) {
+    logError("Failed to deactivate alerts", {
+      userId,
+      partyId,
+      error: alertsError.message,
+    });
+    // Don't throw - this is non-critical
+  }
+
+  // Step 3f: Log event (non-critical - don't throw on error)
+  const { error: eventError } = await supabase.from("events").insert({
+    user_id: userId,
+    party_id: partyId,
+    event_type: "party_closed",
+    created_at: new Date().toISOString(),
+  });
+
+  if (eventError) {
+    logError("Failed to log party_closed event", {
+      userId,
+      partyId,
+      error: eventError.message,
+    });
+    // Don't throw - this is non-critical
+  }
+
+  // Step 3g: Return formatted response
+  const response: ClosePartyResponseDTO = {
+    id: updatedParty.id,
+    status: updatedParty.status as PartyStatus,
+    started_at: new Date(updatedParty.started_at).toISOString(),
+    ended_at: updatedParty.ended_at ? new Date(updatedParty.ended_at).toISOString() : endedAt.toISOString(),
+    bac_estimate_max: updatedParty.bac_estimate_max,
+    total_drinks_count: updatedParty.total_drinks_count,
+    total_ml_consumed: updatedParty.total_ml_consumed,
+  };
+
+  logInfo("Party closed successfully", {
+    userId,
+    partyId,
+    endedAt: response.ended_at,
+    totalDrinks: response.total_drinks_count,
+    maxBAC: response.bac_estimate_max,
+  });
+
+  return response;
 }

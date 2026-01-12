@@ -273,11 +273,11 @@ export const GET: APIRoute = async ({ url, locals }) => {
     // Parse query parameters
     const searchParams = url.searchParams;
     const queryParams = {
-      page: searchParams.get("page"),
-      limit: searchParams.get("limit"),
-      status: searchParams.get("status"),
-      sort: searchParams.get("sort"),
-      order: searchParams.get("order"),
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+      sort: searchParams.get("sort") ?? undefined,
+      order: searchParams.get("order") ?? undefined,
     };
 
     // Validate query parameters
