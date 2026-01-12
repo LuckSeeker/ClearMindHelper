@@ -146,3 +146,28 @@ export const PartyListQuerySchema = z.object({
  * Type inference for PartyListQuerySchema
  */
 export type PartyListQueryInput = z.infer<typeof PartyListQuerySchema>;
+
+/**
+ * Schema for validating party ID parameter
+ *
+ * Validates:
+ * - id: Must be a positive integer (coerced from string)
+ *   Used for validating URL path parameters like /api/parties/:id
+ */
+export const PartyIdParamSchema = z.object({
+  id: z.coerce
+    .number({
+      invalid_type_error: "id must be a number",
+    })
+    .int({
+      message: "id must be an integer",
+    })
+    .positive({
+      message: "id must be a positive number",
+    }),
+});
+
+/**
+ * Type inference for PartyIdParamSchema
+ */
+export type PartyIdParamInput = z.infer<typeof PartyIdParamSchema>;

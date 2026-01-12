@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
+import type { Database } from "../../db/database.types";
 import type {
   PartyDTO,
   ProfileSnapshot,
@@ -18,6 +19,10 @@ import type {
   PartyListItemDTO,
   DrinkPreview,
   PartyStatus,
+  PartyDetailDTO,
+  DrinkWithBACDTO,
+  BACCalculationDTO,
+  AlertDTO,
 } from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
@@ -382,4 +387,199 @@ export async function getPartyList(
       total_pages: totalPages,
     },
   };
+}
+
+/**
+ * Gets detailed information about a specific party
+ *
+ * This is the main business logic for GET /api/parties/:id endpoint.
+ * It performs the following steps:
+ * 1. Fetches party by ID and user ID
+ * 2. Verifies party ownership (authorization)
+ * 3. Fetches all drinks with BAC calculations
+ * 4. Fetches active alerts
+ * 5. Determines current BAC if party is ongoing
+ * 6. Assembles complete PartyDetailDTO
+ *
+ * @param supabase - Supabase client instance
+ * @param userId - The authenticated user's UUID
+ * @param partyId - The party ID to fetch
+ * @returns PartyDetailDTO with complete party information
+ * @throws Error with specific message for different failure scenarios:
+ *   - "PARTY_NOT_FOUND" if party doesn't exist or user doesn't have access
+ *   - Database errors for query failures
+ */
+export async function getPartyDetails(
+  supabase: SupabaseClient,
+  userId: string,
+  partyId: number
+): Promise<PartyDetailDTO> {
+  logInfo("Getting party details", { userId, partyId });
+
+  // Step 1: Fetch party by ID
+  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).maybeSingle();
+
+  if (partyError) {
+    logError("Failed to fetch party", { userId, partyId, error: partyError.message });
+    throw new Error(`Database error: ${partyError.message}`);
+  }
+
+  // Step 2: Verify party exists and belongs to user
+  if (!party) {
+    logInfo("Party not found", { userId, partyId });
+    throw new Error("PARTY_NOT_FOUND");
+  }
+
+  if (party.user_id !== userId) {
+    // Security: Don't reveal party exists, return same error as not found
+    logInfo("Unauthorized party access attempt", {
+      userId,
+      partyId,
+      actualOwnerId: party.user_id,
+    });
+    throw new Error("PARTY_NOT_FOUND");
+  }
+
+  // Step 3: Fetch all drinks with BAC calculations (using LEFT JOIN)
+  const { data: drinksData, error: drinksError } = await supabase
+    .from("drinks")
+    .select(
+      `
+      *,
+      baccalculations (
+        id,
+        drink_id,
+        party_id,
+        user_id,
+        calculated_bac,
+        time_since_first_drink_minutes,
+        algorithm_version,
+        metabolized_alcohol_g,
+        user_profile_snapshot,
+        calculation_timestamp,
+        created_at
+      )
+    `
+    )
+    .eq("party_id", partyId)
+    .order("consumed_at", { ascending: true });
+
+  if (drinksError) {
+    logError("Failed to fetch drinks with BAC", {
+      userId,
+      partyId,
+      error: drinksError.message,
+    });
+    throw new Error(`Database error: ${drinksError.message}`);
+  }
+
+  // Step 4: Fetch active alerts
+  const { data: alertsData, error: alertsError } = await supabase
+    .from("alerts")
+    .select("*")
+    .eq("party_id", partyId)
+    .eq("is_active", true)
+    .order("triggered_at", { ascending: false });
+
+  if (alertsError) {
+    logError("Failed to fetch active alerts", {
+      userId,
+      partyId,
+      error: alertsError.message,
+    });
+    throw new Error(`Database error: ${alertsError.message}`);
+  }
+
+  // Step 5: Transform drinks to DTOs
+  const drinks: DrinkWithBACDTO[] =
+    drinksData?.map((drink) => {
+      // Extract BAC calculation if exists (Supabase returns array for joined relations)
+      type BACCalculationRow = Database["public"]["Tables"]["baccalculations"]["Row"];
+      const bacArray = drink.baccalculations as BACCalculationRow[] | null;
+      const bacData = bacArray && bacArray.length > 0 ? bacArray[0] : null;
+
+      const drinkDTO: DrinkWithBACDTO = {
+        id: drink.id,
+        party_id: drink.party_id,
+        user_id: drink.user_id,
+        volume_ml: drink.volume_ml,
+        abv_percent: drink.abv_percent,
+        consumed_at: new Date(drink.consumed_at).toISOString(),
+        order_sequence: drink.order_sequence,
+        edit_count: drink.edit_count,
+        edited_at: drink.edited_at ? new Date(drink.edited_at).toISOString() : null,
+        original_values: drink.original_values,
+        created_at: drink.created_at ? new Date(drink.created_at).toISOString() : new Date().toISOString(),
+        updated_at: drink.updated_at ? new Date(drink.updated_at).toISOString() : new Date().toISOString(),
+        bac_calculation: bacData
+          ? {
+              id: bacData.id,
+              drink_id: bacData.drink_id,
+              party_id: bacData.party_id,
+              user_id: bacData.user_id,
+              calculated_bac: bacData.calculated_bac,
+              time_since_first_drink_minutes: bacData.time_since_first_drink_minutes,
+              algorithm_version: bacData.algorithm_version,
+              metabolized_alcohol_g: bacData.metabolized_alcohol_g,
+              user_profile_snapshot: bacData.user_profile_snapshot as unknown as ProfileSnapshot,
+              calculation_timestamp: new Date(bacData.calculation_timestamp || new Date()).toISOString(),
+              created_at: bacData.created_at ? new Date(bacData.created_at).toISOString() : new Date().toISOString(),
+            }
+          : null,
+      };
+
+      return drinkDTO;
+    }) || [];
+
+  // Step 6: Transform alerts to DTOs
+  const activeAlerts: AlertDTO[] =
+    alertsData?.map((alert) => ({
+      id: alert.id,
+      user_id: alert.user_id,
+      party_id: alert.party_id,
+      alert_type: alert.alert_type,
+      bac_at_alert: alert.bac_at_alert,
+      last_alert_sent_at: alert.last_alert_sent_at ? new Date(alert.last_alert_sent_at).toISOString() : null,
+      triggered_at: new Date(alert.triggered_at).toISOString(),
+      is_active: alert.is_active,
+      created_at: alert.created_at ? new Date(alert.created_at).toISOString() : new Date().toISOString(),
+      updated_at: alert.updated_at ? new Date(alert.updated_at).toISOString() : new Date().toISOString(),
+    })) || [];
+
+  // Step 7: Determine current BAC (last drink's BAC calculation for ongoing parties)
+  let currentBAC: BACCalculationDTO | null = null;
+  if (party.status === "ongoing" && drinks.length > 0) {
+    const lastDrinkWithBAC = drinks[drinks.length - 1];
+    currentBAC = lastDrinkWithBAC.bac_calculation;
+  }
+
+  // Step 8: Assemble PartyDetailDTO
+  const partyDetail: PartyDetailDTO = {
+    id: party.id,
+    user_id: party.user_id,
+    status: party.status,
+    started_at: new Date(party.started_at).toISOString(),
+    ended_at: party.ended_at ? new Date(party.ended_at).toISOString() : null,
+    bac_estimate_max: party.bac_estimate_max,
+    total_drinks_count: party.total_drinks_count,
+    total_ml_consumed: party.total_ml_consumed,
+    blackout_marked: party.blackout_marked,
+    blackout_marked_at: party.blackout_marked_at ? new Date(party.blackout_marked_at).toISOString() : null,
+    profile_snapshot: party.profile_snapshot as unknown as ProfileSnapshot,
+    created_at: party.created_at ? new Date(party.created_at).toISOString() : new Date().toISOString(),
+    updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
+    drinks,
+    current_bac: currentBAC,
+    active_alerts: activeAlerts,
+  };
+
+  logInfo("Party details retrieved successfully", {
+    userId,
+    partyId,
+    drinksCount: drinks.length,
+    activeAlertsCount: activeAlerts.length,
+    hasCurrentBAC: currentBAC !== null,
+  });
+
+  return partyDetail;
 }
