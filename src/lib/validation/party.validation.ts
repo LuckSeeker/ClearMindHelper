@@ -57,19 +57,6 @@ export const ClosePartySchema = z.object({
 });
 
 /**
- * Schema for marking blackout
- *
- * Validates:
- * - blackout_marked: Boolean flag indicating blackout status
- */
-export const MarkBlackoutSchema = z.object({
-  blackout_marked: z.boolean({
-    required_error: "blackout_marked is required",
-    invalid_type_error: "blackout_marked must be a boolean",
-  }),
-});
-
-/**
  * Type inference for StartPartySchema
  * Can be used for type-safe validation results
  */
@@ -79,11 +66,6 @@ export type StartPartyInput = z.infer<typeof StartPartySchema>;
  * Type inference for ClosePartySchema
  */
 export type ClosePartyInput = z.infer<typeof ClosePartySchema>;
-
-/**
- * Type inference for MarkBlackoutSchema
- */
-export type MarkBlackoutInput = z.infer<typeof MarkBlackoutSchema>;
 
 /**
  * Schema for GET /api/parties query parameters

@@ -163,13 +163,6 @@ export interface ClosePartyResponseDTO {
 }
 
 /**
- * Command for marking blackout
- */
-export interface MarkBlackoutCommand {
-  blackout_marked: boolean;
-}
-
-/**
  * Response DTO after marking blackout
  */
 export interface MarkBlackoutResponseDTO {

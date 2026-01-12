@@ -25,6 +25,7 @@ import type {
   AlertDTO,
   ClosePartyCommand,
   ClosePartyResponseDTO,
+  MarkBlackoutResponseDTO,
 } from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
@@ -798,6 +799,231 @@ export async function closeParty(
     endedAt: response.ended_at,
     totalDrinks: response.total_drinks_count,
     maxBAC: response.bac_estimate_max,
+  });
+
+  return response;
+}
+
+/**
+ * Mark a party as ended with blackout and adjust user threshold
+ *
+ * Business logic flow:
+ * 1. Fetch party and validate ownership
+ * 2. Verify party is closed (status = 'closed')
+ * 3. Get maximum BAC from party calculations
+ * 4. Update party with blackout flag (always true)
+ * 5. Deactivate previous user thresholds
+ * 6. Create new threshold based on max BAC
+ * 7. Log blackout_marked and threshold_adjusted events
+ *
+ * @param supabase - Supabase client instance
+ * @param partyId - ID of the party to mark
+ * @param userId - The authenticated user's UUID
+ * @returns Response with party details and new threshold
+ * @throws Error with appropriate status code and message
+ */
+export async function markBlackout(
+  supabase: SupabaseClient,
+  partyId: number,
+  userId: string
+): Promise<MarkBlackoutResponseDTO> {
+  // Step 1: Fetch party and validate ownership
+  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).single();
+
+  if (partyError || !party) {
+    logError("Party not found", { userId, partyId, error: partyError?.message });
+    throw {
+      status: 404,
+      code: "PARTY_NOT_FOUND",
+      message: "Party not found",
+    };
+  }
+
+  if (party.user_id !== userId) {
+    logError("Unauthorized access to party", { userId, partyId, ownerId: party.user_id });
+    throw {
+      status: 403,
+      code: "PARTY_ACCESS_DENIED",
+      message: "You do not have permission to modify this party",
+    };
+  }
+
+  // Step 2: Verify party is closed
+  if (party.status !== "closed") {
+    logError("Cannot mark blackout for unclosed party", {
+      userId,
+      partyId,
+      status: party.status,
+    });
+    throw {
+      status: 400,
+      code: "PARTY_NOT_CLOSED",
+      message: "Cannot mark blackout for a party that is not closed",
+    };
+  }
+
+  // Step 3: Get maximum BAC from calculations
+  const { data: bacCalc, error: bacError } = await supabase
+    .from("baccalculations")
+    .select("calculated_bac")
+    .eq("party_id", partyId)
+    .order("calculated_bac", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (bacError) {
+    logError("Failed to fetch BAC calculations", {
+      userId,
+      partyId,
+      error: bacError.message,
+    });
+    throw {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Failed to process BAC calculations",
+    };
+  }
+
+  if (!bacCalc || bacCalc.calculated_bac === null) {
+    logError("No BAC calculations found for party", { userId, partyId });
+    throw {
+      status: 400,
+      code: "NO_BAC_CALCULATIONS",
+      message: "Cannot mark blackout for party without BAC calculations. Please add at least one drink.",
+    };
+  }
+
+  const maxBAC = bacCalc.calculated_bac;
+  const now = new Date().toISOString();
+
+  // Step 4: Update party with blackout flag (always true)
+  const { data: updatedParty, error: updateError } = await supabase
+    .from("parties")
+    .update({
+      blackout_marked: true,
+      blackout_marked_at: now,
+      updated_at: now,
+    })
+    .eq("id", partyId)
+    .select()
+    .single();
+
+  if (updateError || !updatedParty) {
+    logError("Failed to update party", {
+      userId,
+      partyId,
+      error: updateError?.message,
+    });
+    throw {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Failed to update party",
+    };
+  }
+
+  // Step 5: Deactivate previous user thresholds
+  const { error: deactivateError } = await supabase
+    .from("userthresholds")
+    .update({ is_current: false })
+    .eq("user_id", userId)
+    .eq("is_current", true);
+
+  if (deactivateError) {
+    logError("Failed to deactivate previous thresholds", {
+      userId,
+      partyId,
+      error: deactivateError.message,
+    });
+    throw {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Failed to update user thresholds",
+    };
+  }
+
+  // Step 6: Create new threshold based on max BAC
+  const { data: newThreshold, error: thresholdError } = await supabase
+    .from("userthresholds")
+    .insert({
+      user_id: userId,
+      threshold_bac: maxBAC,
+      is_current: true,
+      reason: "blackout_marked",
+      trigger_party_id: partyId,
+      created_at: now,
+    })
+    .select()
+    .single();
+
+  if (thresholdError || !newThreshold) {
+    logError("Failed to create new threshold", {
+      userId,
+      partyId,
+      maxBAC,
+      error: thresholdError?.message,
+    });
+    throw {
+      status: 500,
+      code: "INTERNAL_ERROR",
+      message: "Failed to create new threshold",
+    };
+  }
+
+  // Step 7a: Log blackout_marked event (non-critical)
+  const { error: blackoutEventError } = await supabase.from("events").insert({
+    user_id: userId,
+    party_id: partyId,
+    event_type: "blackout_marked",
+    created_at: now,
+  });
+
+  if (blackoutEventError) {
+    logError("Failed to log blackout_marked event", {
+      userId,
+      partyId,
+      error: blackoutEventError.message,
+    });
+    // Don't throw - this is non-critical
+  }
+
+  // Step 7b: Log threshold_adjusted event (non-critical)
+  const { error: thresholdEventError } = await supabase.from("events").insert({
+    user_id: userId,
+    party_id: partyId,
+    event_type: "threshold_adjusted",
+    created_at: now,
+  });
+
+  if (thresholdEventError) {
+    logError("Failed to log threshold_adjusted event", {
+      userId,
+      partyId,
+      error: thresholdEventError.message,
+    });
+    // Don't throw - this is non-critical
+  }
+
+  // Step 8: Format and return response
+  const response: MarkBlackoutResponseDTO = {
+    id: updatedParty.id,
+    blackout_marked: updatedParty.blackout_marked ?? false,
+    blackout_marked_at: updatedParty.blackout_marked_at,
+    new_threshold: {
+      id: newThreshold.id,
+      user_id: newThreshold.user_id,
+      threshold_bac: newThreshold.threshold_bac,
+      is_current: newThreshold.is_current,
+      reason: newThreshold.reason,
+      trigger_party_id: newThreshold.trigger_party_id,
+      created_at: newThreshold.created_at || now,
+    },
+  };
+
+  logInfo("Blackout marked successfully", {
+    userId,
+    partyId,
+    maxBAC,
+    newThreshold: newThreshold.threshold_bac,
   });
 
   return response;
