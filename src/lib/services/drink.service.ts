@@ -15,6 +15,8 @@ import type { Json } from "../../db/database.types";
 import type {
   AddDrinkCommand,
   AddDrinkResponseDTO,
+  UpdateDrinkCommand,
+  UpdateDrinkResponseDTO,
   DrinkDTO,
   BACCalculationDTO,
   DrinkValidationWarning,
@@ -681,6 +683,311 @@ export async function addDrinkToParty(
   };
 
   logInfo("Successfully added drink to party", { drinkId: drink.id, bac: calculatedBAC });
+
+  return {
+    drink: drinkDTO,
+    bac_calculation: bacCalculationDTO,
+    warnings,
+    active_alerts: activeAlerts,
+  };
+}
+
+/**
+ * Updates the last drink in a party
+ *
+ * This function:
+ * 1. Validates party and permissions
+ * 2. Validates drink exists and belongs to party
+ * 3. Validates drink is the last one in the party
+ * 4. Validates party is ongoing
+ * 5. Validates BAC limit would not be exceeded with new values
+ * 6. Updates drink with new values (preserves original_values on first edit)
+ * 7. Recalculates BAC for the drink
+ * 8. Updates party statistics (bac_estimate_max, total_ml_consumed)
+ * 9. Re-evaluates alerts
+ * 10. Logs event
+ *
+ * @param supabase - Supabase client
+ * @param userId - Authenticated user ID
+ * @param partyId - Party ID
+ * @param drinkId - Drink ID to update
+ * @param command - Update drink command
+ * @returns Response with updated drink, recalculated BAC, warnings, and alerts
+ */
+export async function updateLastDrink(
+  supabase: SupabaseClient,
+  userId: string,
+  partyId: number,
+  drinkId: number,
+  command: UpdateDrinkCommand
+): Promise<UpdateDrinkResponseDTO> {
+  logInfo("Updating last drink in party", { userId, partyId, drinkId, command });
+
+  // 1. Validate party exists and belongs to user
+  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).maybeSingle();
+
+  if (partyError) {
+    logError("Failed to fetch party", { partyId, error: partyError.message });
+    throw new Error(`Database error: ${partyError.message}`);
+  }
+
+  const validation = validatePartyForDrink(party, userId);
+
+  if (!validation.valid && validation.error) {
+    const error = new Error(validation.error.message) as Error & {
+      code: string;
+      status: number;
+    };
+    error.code = validation.error.code;
+    error.status = validation.status ?? 500;
+    throw error;
+  }
+
+  // Type guard: at this point party is not null
+  if (!party) {
+    throw new Error("Party validation passed but party is null");
+  }
+
+  // 2. Validate drink exists and belongs to party
+  const { data: drink, error: drinkError } = await supabase
+    .from("drinks")
+    .select("*")
+    .eq("id", drinkId)
+    .eq("party_id", partyId)
+    .maybeSingle();
+
+  if (drinkError) {
+    logError("Failed to fetch drink", { drinkId, error: drinkError.message });
+    throw new Error(`Database error: ${drinkError.message}`);
+  }
+
+  if (!drink) {
+    const error = new Error("Drink not found") as Error & {
+      code: string;
+      status: number;
+    };
+    error.code = "DRINK_NOT_FOUND";
+    error.status = 404;
+    throw error;
+  }
+
+  // Verify drink belongs to the user (extra security check)
+  if (drink.user_id !== userId) {
+    const error = new Error("You don't have permission to edit this drink") as Error & {
+      code: string;
+      status: number;
+    };
+    error.code = "FORBIDDEN";
+    error.status = 403;
+    throw error;
+  }
+
+  // 3. Validate drink is the last one in party
+  const { data: maxOrderData, error: maxOrderError } = await supabase
+    .from("drinks")
+    .select("order_sequence")
+    .eq("party_id", partyId)
+    .order("order_sequence", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (maxOrderError) {
+    logError("Failed to get max order_sequence", { partyId, error: maxOrderError.message });
+    throw new Error(`Database error: ${maxOrderError.message}`);
+  }
+
+  if (!maxOrderData || drink.order_sequence !== maxOrderData.order_sequence) {
+    const error = new Error("Only the last drink can be edited") as Error & {
+      code: string;
+      status: number;
+    };
+    error.code = "NOT_LAST_DRINK";
+    error.status = 409;
+    throw error;
+  }
+
+  // 4. Validate BAC limit with updated values
+  const profileSnapshot = party.profile_snapshot as unknown as ProfileSnapshot;
+  const partyStartTime = new Date(party.started_at);
+  const consumedAt = new Date(drink.consumed_at);
+  const timeElapsedHours = (consumedAt.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
+
+  // Calculate total alcohol WITHOUT this drink, then add the new values
+  const allDrinks = await supabase.from("drinks").select("*").eq("party_id", partyId).order("order_sequence");
+
+  if (allDrinks.error) {
+    logError("Failed to fetch all drinks", { partyId, error: allDrinks.error.message });
+    throw new Error(`Database error: ${allDrinks.error.message}`);
+  }
+
+  const totalAlcoholWithoutThisDrink = (allDrinks.data || [])
+    .filter((d) => d.id !== drinkId)
+    .reduce((total, d) => total + calculateAlcoholGrams(d.volume_ml, d.abv_percent), 0);
+
+  const bacLimitValidation = validateBACLimit(
+    command.volume_ml,
+    command.abv_percent,
+    totalAlcoholWithoutThisDrink,
+    profileSnapshot,
+    timeElapsedHours
+  );
+
+  if (!bacLimitValidation.valid && bacLimitValidation.error) {
+    const error = new Error(bacLimitValidation.error.message) as Error & {
+      code: string;
+      status: number;
+    };
+    error.code = bacLimitValidation.error.code;
+    error.status = 400;
+    throw error;
+  }
+
+  // 5. Check for validation warnings
+  const warnings: DrinkValidationWarning[] = [];
+  const volumeWarning = checkUnrealisticVolume(command.volume_ml);
+  if (volumeWarning) {
+    warnings.push(volumeWarning);
+  }
+
+  // 6. Update drink - preserve original_values on first edit
+  const currentEditCount = drink.edit_count ?? 0;
+  const isFirstEdit = currentEditCount === 0;
+  const updatePayload: {
+    volume_ml: number;
+    abv_percent: number;
+    edited_at: string;
+    edit_count: number;
+    original_values?: { volume_ml: number; abv_percent: number };
+  } = {
+    volume_ml: command.volume_ml,
+    abv_percent: command.abv_percent,
+    edited_at: new Date().toISOString(),
+    edit_count: currentEditCount + 1,
+  };
+
+  if (isFirstEdit) {
+    updatePayload.original_values = {
+      volume_ml: drink.volume_ml,
+      abv_percent: drink.abv_percent,
+    };
+  }
+
+  const { data: updatedDrink, error: updateError } = await supabase
+    .from("drinks")
+    .update(updatePayload)
+    .eq("id", drinkId)
+    .select()
+    .single();
+
+  if (updateError) {
+    logError("Failed to update drink", { drinkId, error: updateError.message });
+    throw new Error(`Database error: ${updateError.message}`);
+  }
+
+  // 7. Recalculate BAC for this drink
+  const totalAlcoholGrams =
+    totalAlcoholWithoutThisDrink + calculateAlcoholGrams(command.volume_ml, command.abv_percent);
+
+  const calculatedBAC = calculateBAC(totalAlcoholGrams, profileSnapshot, timeElapsedHours);
+  const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
+
+  // 8. Update BAC calculation
+  const timeElapsedMinutes = Math.round(timeElapsedHours * 60);
+  const { data: bacCalculation, error: bacUpdateError } = await supabase
+    .from("baccalculations")
+    .update({
+      calculated_bac: calculatedBAC,
+      metabolized_alcohol_g: metabolizedAlcohol,
+      calculation_timestamp: new Date().toISOString(),
+      time_since_first_drink_minutes: timeElapsedMinutes,
+    })
+    .eq("drink_id", drinkId)
+    .select()
+    .maybeSingle();
+
+  if (bacUpdateError) {
+    logError("Failed to update BAC calculation", { drinkId, error: bacUpdateError.message });
+    throw new Error(`Database error: ${bacUpdateError.message}`);
+  }
+
+  if (!bacCalculation) {
+    logError("BAC calculation not found for drink after update", { drinkId });
+    throw new Error("BAC calculation not found");
+  }
+
+  // 9. Recalculate party statistics
+  // Get all drinks with updated values
+  const { data: allDrinksUpdated, error: allDrinksError } = await supabase
+    .from("drinks")
+    .select("volume_ml, abv_percent, consumed_at")
+    .eq("party_id", partyId)
+    .order("consumed_at");
+
+  if (allDrinksError) {
+    logError("Failed to fetch drinks for stats", { partyId, error: allDrinksError.message });
+    throw new Error(`Database error: ${allDrinksError.message}`);
+  }
+
+  // Calculate max BAC across all drinks
+  let maxBAC = 0;
+  let cumulativeAlcohol = 0;
+
+  for (const d of allDrinksUpdated || []) {
+    cumulativeAlcohol += calculateAlcoholGrams(d.volume_ml, d.abv_percent);
+    const drinkTime = new Date(d.consumed_at);
+    const timeFromStart = (drinkTime.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
+    const bac = calculateBAC(cumulativeAlcohol, profileSnapshot, timeFromStart);
+    maxBAC = Math.max(maxBAC, bac);
+  }
+
+  // Calculate total ml consumed
+  const totalMlConsumed = (allDrinksUpdated || []).reduce((sum, d) => sum + d.volume_ml, 0);
+
+  // Update party statistics
+  await supabase
+    .from("parties")
+    .update({
+      bac_estimate_max: maxBAC,
+      total_ml_consumed: totalMlConsumed,
+    })
+    .eq("id", partyId);
+
+  // 10. Re-evaluate alerts
+  // Deactivate all existing alerts for this party
+  await supabase.from("alerts").update({ is_active: false }).eq("party_id", partyId).eq("is_active", true);
+
+  // Get user threshold and create new alerts if needed
+  const thresholdBAC = await getUserThreshold(supabase, userId);
+
+  if (calculatedBAC >= APPROACHING_THRESHOLD_MULTIPLIER * thresholdBAC) {
+    await manageAlert(supabase, partyId, userId, "approaching_threshold", calculatedBAC);
+  }
+
+  if (calculatedBAC >= thresholdBAC) {
+    await manageAlert(supabase, partyId, userId, "exceeded_threshold", calculatedBAC);
+  }
+
+  // 11. Get all active alerts
+  const activeAlerts = await getActiveAlerts(supabase, partyId);
+
+  // 12. Log event
+  await logEvent(supabase, userId, "drink_edited", partyId);
+
+  // 13. Build response
+  const drinkDTO: DrinkDTO = {
+    ...updatedDrink,
+    created_at: updatedDrink.created_at ?? new Date().toISOString(),
+    updated_at: updatedDrink.updated_at ?? new Date().toISOString(),
+  };
+
+  const bacCalculationDTO: BACCalculationDTO = {
+    ...bacCalculation,
+    user_profile_snapshot: profileSnapshot,
+    calculation_timestamp: bacCalculation.calculation_timestamp ?? new Date().toISOString(),
+    created_at: bacCalculation.created_at ?? new Date().toISOString(),
+  };
+
+  logInfo("Successfully updated last drink", { drinkId, bac: calculatedBAC });
 
   return {
     drink: drinkDTO,

@@ -31,40 +31,28 @@
 import type { APIRoute } from "astro";
 
 import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
-import { logError, logInfo, logWarning } from "../../../../lib/logger";
+import { logError, logWarning } from "../../../../lib/logger";
+import {
+  parsePositiveIntParam,
+  parseJsonBody,
+  createValidationErrorResponse,
+  createSuccessResponse,
+  createErrorResponseFromThrown,
+  CommonErrors,
+} from "../../../../lib/api-helpers";
 import { addDrinkToParty } from "../../../../lib/services/drink.service";
 import { AddDrinkSchema } from "../../../../lib/validation/drink.validation";
-import type {
-  APIError,
-  AddDrinkResponseDTO,
-  ValidationWarningResponse,
-  DrinkValidationWarning,
-} from "../../../../types";
+import type { ValidationWarningResponse, DrinkValidationWarning } from "../../../../types";
 
 export const prerender = false;
 
 export const POST: APIRoute = async ({ request, params, locals }) => {
   try {
-    console.log("[DRINKS] POST request received", { partyId: params.id });
-    
     // Extract Supabase client from middleware
     const supabase = locals.supabase;
-
     if (!supabase) {
-      console.error("[DRINKS] Supabase client not available");
       logError("Supabase client not available in locals");
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INTERNAL_SERVER_ERROR",
-            message: "An unexpected error occurred. Please try again later.",
-          },
-        } satisfies APIError),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return CommonErrors.supabaseUnavailable();
     }
 
     // DEVELOPMENT MODE: Use default user ID instead of authentication
@@ -72,93 +60,23 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     const userId = DEFAULT_USER_ID;
 
     // Parse and validate partyId from path parameter
-    const partyId = parseInt(params.id || "", 10);
-    console.log("[DRINKS] Parsed partyId:", partyId);
-
-    if (isNaN(partyId) || partyId <= 0) {
-      console.warn("[DRINKS] Invalid partyId", params.id);
-      logWarning("Invalid partyId in path", { partyId: params.id });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_PARTY_ID",
-            message: "Party ID must be a positive integer",
-          },
-        } satisfies APIError),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+    const partyIdResult = parsePositiveIntParam(params.id, "partyId");
+    if (!partyIdResult.success) return partyIdResult.response;
+    const partyId = partyIdResult.value;
 
     // Parse and validate request body
-    let body: unknown;
-    try {
-      const text = await request.text();
-      console.log("[DRINKS] Request body text:", text);
-      body = text ? JSON.parse(text) : {};
-      console.log("[DRINKS] Parsed body:", body);
-    } catch (error) {
-      console.error("[DRINKS] JSON parse error:", error);
-      logWarning("Invalid JSON in request body", { error: String(error) });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_JSON",
-            message: "Request body must be valid JSON",
-          },
-        } satisfies APIError),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
+    const bodyResult = await parseJsonBody(request);
+    if (!bodyResult.success) return bodyResult.response;
 
     // Validate request body with Zod schema
-    console.log("[DRINKS] Validating with Zod schema");
-    const validation = AddDrinkSchema.safeParse(body);
-
+    const validation = AddDrinkSchema.safeParse(bodyResult.value);
     if (!validation.success) {
-      console.warn("[DRINKS] Zod validation failed:", validation.error.errors);
-      const firstError = validation.error.errors[0];
-      logWarning("Request validation failed", {
-        errors: validation.error.errors,
-        body,
-      });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "VALIDATION_ERROR",
-            message: firstError.message,
-            details: {
-              field: firstError.path.join("."),
-              issues: validation.error.errors,
-            },
-          },
-        } satisfies APIError),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return createValidationErrorResponse(validation.error);
     }
 
     // Call service layer to add drink
-    const command = validation.data;
-    console.log("[DRINKS] Calling addDrinkToParty service", { userId, partyId, command });
-    logInfo("Adding drink to party", { userId, partyId, command });
-
-    const result = await addDrinkToParty(supabase, userId, partyId, command);
-    console.log("[DRINKS] Service returned successfully", { drinkId: result.drink.id });
-
-    logInfo("Successfully added drink to party", { partyId, drinkId: result.drink.id });
-
-    return new Response(JSON.stringify(result satisfies AddDrinkResponseDTO), {
-      status: 201,
-      headers: { "Content-Type": "application/json" },
-    });
+    const result = await addDrinkToParty(supabase, userId, partyId, validation.data);
+    return createSuccessResponse(result, 201);
   } catch (error) {
     // Handle custom errors with status codes
     if (error instanceof Error) {
@@ -170,9 +88,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
 
       // Handle validation warnings (422)
       if (err.status === 422 && err.warnings) {
-        logWarning("Validation warnings require confirmation", {
-          warnings: err.warnings,
-        });
+        logWarning("Validation warnings require confirmation", { warnings: err.warnings });
         return new Response(
           JSON.stringify({
             warnings: err.warnings,
@@ -185,47 +101,22 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
         );
       }
 
-      // Handle known errors (400, 403, 404)
-      if (err.status && err.code) {
-        logWarning("Business logic error", {
-          code: err.code,
-          message: err.message,
-          status: err.status,
-        });
-        return new Response(
-          JSON.stringify({
-            error: {
-              code: err.code,
-              message: err.message,
-            },
-          } satisfies APIError),
-          {
-            status: err.status,
-            headers: { "Content-Type": "application/json" },
-          }
-        );
-      }
+      // Handle common business logic errors
+      if (err.code === "PARTY_NOT_FOUND") return CommonErrors.partyNotFound();
+      if (err.code === "FORBIDDEN") return CommonErrors.forbidden();
+      if (err.code === "PARTY_CLOSED") return CommonErrors.partyClosed("add drinks to");
+
+      // Handle other known errors with code and status
+      const errorResponse = createErrorResponseFromThrown(err);
+      if (errorResponse) return errorResponse;
     }
 
     // Handle unexpected errors (500)
-    console.error("[DRINKS] Unexpected error:", error);
-    console.error("[DRINKS] Error stack:", error instanceof Error ? error.stack : "No stack");
     logError("Unexpected error in POST /api/parties/:id/drinks", {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: "An unexpected error occurred. Please try again later.",
-        },
-      } satisfies APIError),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return CommonErrors.internalError();
   }
 };
