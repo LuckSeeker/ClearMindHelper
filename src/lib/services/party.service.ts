@@ -29,6 +29,7 @@ import type {
 } from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
+import { logEvent } from "./event.service";
 
 /**
  * Checks if user has an ongoing party
@@ -187,17 +188,8 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
 
   logInfo("Party created successfully", { userId, partyId: newParty.id });
 
-  // Step 5: Log party_started event
-  try {
-    await logPartyStartedEvent(supabase, userId, newParty.id);
-  } catch (eventError) {
-    // Event logging is non-critical, log error but don't fail the request
-    logError("Failed to log party_started event", {
-      userId,
-      partyId: newParty.id,
-      error: eventError instanceof Error ? eventError.message : "Unknown error",
-    });
-  }
+  // Step 5: Log party_started event (non-critical)
+  await logEvent(supabase, userId, "party_started", newParty.id);
 
   // Transform to DTO
   const partyDTO: PartyDTO = {
@@ -217,34 +209,6 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
   };
 
   return partyDTO;
-}
-
-/**
- * Logs party_started event to events table
- *
- * Events table tracks important user actions for analytics and audit trail.
- * This is a fire-and-forget operation - failures are logged but don't affect
- * the party creation flow.
- *
- * @param supabase - Supabase client instance
- * @param userId - The authenticated user's UUID
- * @param partyId - The newly created party's ID
- * @throws Error if database insert fails
- */
-async function logPartyStartedEvent(supabase: SupabaseClient, userId: string, partyId: number): Promise<void> {
-  const { error } = await supabase.from("events").insert({
-    user_id: userId,
-    event_type: "party_started",
-    party_id: partyId,
-    event_timestamp: new Date().toISOString(),
-    metadata: null,
-  });
-
-  if (error) {
-    throw new Error(`Failed to log event: ${error.message}`);
-  }
-
-  logInfo("Event logged", { userId, partyId, eventType: "party_started" });
 }
 
 /**
@@ -766,21 +730,7 @@ export async function closeParty(
   }
 
   // Step 3f: Log event (non-critical - don't throw on error)
-  const { error: eventError } = await supabase.from("events").insert({
-    user_id: userId,
-    party_id: partyId,
-    event_type: "party_closed",
-    created_at: new Date().toISOString(),
-  });
-
-  if (eventError) {
-    logError("Failed to log party_closed event", {
-      userId,
-      partyId,
-      error: eventError.message,
-    });
-    // Don't throw - this is non-critical
-  }
+  await logEvent(supabase, userId, "party_closed", partyId);
 
   // Step 3g: Return formatted response
   const response: ClosePartyResponseDTO = {
@@ -896,6 +846,11 @@ export async function markBlackout(
   const maxBAC = bacCalc.calculated_bac;
   const now = new Date().toISOString();
 
+  // Ensure new threshold is within valid range (> 0 and <= 0.99)
+  // Threshold cannot be 0 or negative, and must not exceed BAC limit
+  const MAX_THRESHOLD = 0.99;
+  const newThresholdValue = Math.max(0.01, Math.min(maxBAC, MAX_THRESHOLD));
+
   // Step 4: Update party with blackout flag (always true)
   const { data: updatedParty, error: updateError } = await supabase
     .from("parties")
@@ -946,7 +901,7 @@ export async function markBlackout(
     .from("userthresholds")
     .insert({
       user_id: userId,
-      threshold_bac: maxBAC,
+      threshold_bac: newThresholdValue,
       is_current: true,
       reason: "blackout_marked",
       trigger_party_id: partyId,
@@ -960,6 +915,7 @@ export async function markBlackout(
       userId,
       partyId,
       maxBAC,
+      newThresholdValue,
       error: thresholdError?.message,
     });
     throw {
@@ -970,38 +926,10 @@ export async function markBlackout(
   }
 
   // Step 7a: Log blackout_marked event (non-critical)
-  const { error: blackoutEventError } = await supabase.from("events").insert({
-    user_id: userId,
-    party_id: partyId,
-    event_type: "blackout_marked",
-    created_at: now,
-  });
-
-  if (blackoutEventError) {
-    logError("Failed to log blackout_marked event", {
-      userId,
-      partyId,
-      error: blackoutEventError.message,
-    });
-    // Don't throw - this is non-critical
-  }
+  await logEvent(supabase, userId, "blackout_marked", partyId);
 
   // Step 7b: Log threshold_adjusted event (non-critical)
-  const { error: thresholdEventError } = await supabase.from("events").insert({
-    user_id: userId,
-    party_id: partyId,
-    event_type: "threshold_adjusted",
-    created_at: now,
-  });
-
-  if (thresholdEventError) {
-    logError("Failed to log threshold_adjusted event", {
-      userId,
-      partyId,
-      error: thresholdEventError.message,
-    });
-    // Don't throw - this is non-critical
-  }
+  await logEvent(supabase, userId, "threshold_adjusted", partyId);
 
   // Step 8: Format and return response
   const response: MarkBlackoutResponseDTO = {
@@ -1024,6 +952,7 @@ export async function markBlackout(
     partyId,
     maxBAC,
     newThreshold: newThreshold.threshold_bac,
+    adjustedFromMaxBAC: maxBAC !== newThresholdValue,
   });
 
   return response;
