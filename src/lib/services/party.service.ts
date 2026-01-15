@@ -29,6 +29,7 @@ import type {
 } from "../../types";
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
+import { verifyPartyOwnershipOrThrow } from "../api-helpers";
 import { logEvent } from "./event.service";
 
 /**
@@ -425,29 +426,8 @@ export async function getPartyDetails(
 ): Promise<PartyDetailDTO> {
   logInfo("Getting party details", { userId, partyId });
 
-  // Step 1: Fetch party by ID
-  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).maybeSingle();
-
-  if (partyError) {
-    logError("Failed to fetch party", { userId, partyId, error: partyError.message });
-    throw new Error(`Database error: ${partyError.message}`);
-  }
-
-  // Step 2: Verify party exists and belongs to user
-  if (!party) {
-    logInfo("Party not found", { userId, partyId });
-    throw new Error("PARTY_NOT_FOUND");
-  }
-
-  if (party.user_id !== userId) {
-    // Security: Don't reveal party exists, return same error as not found
-    logInfo("Unauthorized party access attempt", {
-      userId,
-      partyId,
-      actualOwnerId: party.user_id,
-    });
-    throw new Error("PARTY_NOT_FOUND");
-  }
+  // Step 1: Verify party exists and belongs to user
+  const party = (await verifyPartyOwnershipOrThrow(supabase, partyId, userId)) as Party;
 
   // Step 3: Fetch all drinks with BAC calculations (using LEFT JOIN)
   const { data: drinksData, error: drinksError } = await supabase
@@ -777,26 +757,8 @@ export async function markBlackout(
   partyId: number,
   userId: string
 ): Promise<MarkBlackoutResponseDTO> {
-  // Step 1: Fetch party and validate ownership
-  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).single();
-
-  if (partyError || !party) {
-    logError("Party not found", { userId, partyId, error: partyError?.message });
-    throw {
-      status: 404,
-      code: "PARTY_NOT_FOUND",
-      message: "Party not found",
-    };
-  }
-
-  if (party.user_id !== userId) {
-    logError("Unauthorized access to party", { userId, partyId, ownerId: party.user_id });
-    throw {
-      status: 403,
-      code: "PARTY_ACCESS_DENIED",
-      message: "You do not have permission to modify this party",
-    };
-  }
+  // Step 1: Verify party exists and belongs to user
+  const party = (await verifyPartyOwnershipOrThrow(supabase, partyId, userId)) as Party;
 
   // Step 2: Verify party is closed
   if (party.status !== "closed") {

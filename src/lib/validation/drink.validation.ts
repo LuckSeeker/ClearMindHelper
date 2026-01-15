@@ -8,6 +8,25 @@
 import { z } from "zod";
 
 /**
+ * Schema for validating query parameters for GET /parties/:id/drinks
+ * Handles multiple boolean formats: 'true', '1', true, etc.
+ */
+export const PartyDrinksQueryParamsSchema = z.object({
+  include_bac: z
+    .union([z.string(), z.boolean(), z.null()])
+    .nullable()
+    .optional()
+    .default(true)
+    .transform((val) => {
+      if (val === null || val === undefined) return true;
+      if (typeof val === "boolean") return val;
+      // Parse string to boolean
+      const lower = String(val).toLowerCase();
+      return lower === "true" || lower === "1" || lower === "yes";
+    }),
+});
+
+/**
  * Schema for adding a new drink to a party
  *
  * Validates:

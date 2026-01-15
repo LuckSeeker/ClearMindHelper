@@ -8,7 +8,8 @@
  */
 
 import type { APIError } from "../types";
-import { logWarning } from "./logger";
+import { logWarning, logError, logInfo } from "./logger";
+import { DEFAULT_USER_ID, type SupabaseClient } from "../db/supabase.client";
 
 // ============================================================================
 // Parameter Validation Helpers
@@ -95,6 +96,159 @@ export async function parseJsonBody(request: Request, allowEmpty = true): Promis
       ),
     };
   }
+}
+
+/**
+ * Gets authenticated user ID (currently uses DEFAULT_USER_ID in dev mode)
+ * Returns ParseResult with userId or 401 error response
+ *
+ * @param locals - Astro locals object (currently unused in dev mode)
+ * @returns ParseResult with userId string or error Response
+ *
+ * @example
+ * const userIdResult = getAuthenticatedUserId(locals);
+ * if (!userIdResult.success) return userIdResult.response;
+ * const userId = userIdResult.value;
+ *
+ * @todo Replace with proper JWT authentication from locals.user
+ */
+export function getAuthenticatedUserId(): ParseResult<string> {
+  // DEVELOPMENT MODE: Use default user ID instead of authentication
+  // TODO: Replace with proper JWT authentication
+  const userId = DEFAULT_USER_ID;
+  // In production, add locals parameter: (locals: unknown) and use: const userId = (locals as any).user?.id;
+
+  if (!userId) {
+    logWarning("Unauthorized access attempt - no user ID");
+    return {
+      success: false,
+      response: createErrorResponse(
+        {
+          code: "UNAUTHORIZED",
+          message: "Missing or invalid authentication token",
+        },
+        401
+      ),
+    };
+  }
+
+  return { success: true, value: userId };
+}
+
+/**
+ * Verifies party exists and belongs to authenticated user
+ * Common pattern for party-related endpoints
+ *
+ * @param supabase - Supabase client instance
+ * @param partyId - Party ID to verify
+ * @param userId - Authenticated user ID
+ * @param context - Optional context for logging (e.g., "GET drinks", "POST drinks")
+ * @returns ParseResult with party data or error Response
+ *
+ * @example
+ * const partyResult = await verifyPartyOwnership(supabase, partyId, userId);
+ * if (!partyResult.success) return partyResult.response;
+ * const party = partyResult.value;
+ */
+export async function verifyPartyOwnership(
+  supabase: SupabaseClient,
+  partyId: number,
+  userId: string,
+  context?: string
+): Promise<ParseResult<{ id: number; user_id: string; status: string }>> {
+  const logContext = context ? ` in ${context}` : "";
+
+  const { data: party, error: partyError } = await supabase
+    .from("parties")
+    .select("id, user_id, status")
+    .eq("id", partyId)
+    .maybeSingle();
+
+  if (partyError) {
+    logWarning(`Database error fetching party${logContext}`, {
+      userId,
+      partyId,
+      error: partyError.message,
+    });
+    return {
+      success: false,
+      response: createErrorResponse(
+        {
+          code: "DATABASE_ERROR",
+          message: "An unexpected error occurred",
+        },
+        500
+      ),
+    };
+  }
+
+  if (!party) {
+    logWarning(`Party not found${logContext}`, { userId, partyId });
+    return {
+      success: false,
+      response: CommonErrors.partyNotFound(),
+    };
+  }
+
+  if (party.user_id !== userId) {
+    logWarning(`Forbidden access attempt${logContext}`, {
+      userId,
+      partyId,
+      ownerId: party.user_id,
+    });
+    return {
+      success: false,
+      response: CommonErrors.forbidden("You don't have permission to access this party"),
+    };
+  }
+
+  return { success: true, value: party };
+}
+
+/**
+ * Verifies party exists and belongs to authenticated user (for services)
+ * Throws error instead of returning Response - use in service layer
+ *
+ * @param supabase - Supabase client instance
+ * @param partyId - Party ID to verify
+ * @param userId - Authenticated user ID
+ * @returns Party data
+ * @throws Error with code property (PARTY_NOT_FOUND, FORBIDDEN, DATABASE_ERROR)
+ *
+ * @example
+ * const party = await verifyPartyOwnershipOrThrow(supabase, partyId, userId);
+ */
+export async function verifyPartyOwnershipOrThrow(
+  supabase: SupabaseClient,
+  partyId: number,
+  userId: string
+): Promise<{ id: number; user_id: string; status: string; [key: string]: unknown }> {
+  const { data: party, error: partyError } = await supabase.from("parties").select("*").eq("id", partyId).maybeSingle();
+
+  if (partyError) {
+    logError("Database error fetching party", {
+      userId,
+      partyId,
+      error: partyError.message,
+    });
+    throw new Error(`Database error: ${partyError.message}`);
+  }
+
+  if (!party) {
+    logInfo("Party not found", { userId, partyId });
+    throw new Error("PARTY_NOT_FOUND");
+  }
+
+  if (party.user_id !== userId) {
+    logInfo("Unauthorized party access attempt", {
+      userId,
+      partyId,
+      actualOwnerId: party.user_id,
+    });
+    throw new Error("PARTY_NOT_FOUND"); // Security: don't reveal party exists
+  }
+
+  return party;
 }
 
 // ============================================================================

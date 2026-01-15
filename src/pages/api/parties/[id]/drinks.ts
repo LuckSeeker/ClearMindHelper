@@ -1,4 +1,28 @@
 /**
+ * GET /api/parties/:id/drinks
+ *
+ * Retrieves all drinks consumed during a specific party with optional BAC calculations.
+ * Implements User Story US-009.
+ *
+ * Authentication: Required (JWT token in Authorization header)
+ * Authorization: User must own the party
+ *
+ * Path Parameters:
+ *   - id: number - The party's ID
+ *
+ * Query Parameters:
+ *   - include_bac: boolean (optional) - Include BAC calculations, defaults to true
+ *
+ * Success Response (200):
+ *   - PartyDrinksResponseDTO with drinks list and metadata
+ *
+ * Error Responses:
+ *   - 400: Invalid party ID format or query parameters
+ *   - 401: Missing or invalid authentication token
+ *   - 403: Party belongs to another user
+ *   - 404: Party not found
+ *   - 500: Internal server error (database or unexpected error)
+ *
  * POST /api/parties/:id/drinks
  *
  * Adds a new drink to an ongoing party session.
@@ -30,8 +54,7 @@
 
 import type { APIRoute } from "astro";
 
-import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
-import { logError, logWarning } from "../../../../lib/logger";
+import { logError, logWarning, logInfo } from "../../../../lib/logger";
 import {
   parsePositiveIntParam,
   parseJsonBody,
@@ -39,12 +62,76 @@ import {
   createSuccessResponse,
   createErrorResponseFromThrown,
   CommonErrors,
+  getAuthenticatedUserId,
+  verifyPartyOwnership,
 } from "../../../../lib/api-helpers";
-import { addDrinkToParty } from "../../../../lib/services/drink.service";
-import { AddDrinkSchema } from "../../../../lib/validation/drink.validation";
+import { addDrinkToParty, getDrinksByPartyId } from "../../../../lib/services/drink.service";
+import { AddDrinkSchema, PartyDrinksQueryParamsSchema } from "../../../../lib/validation/drink.validation";
 import type { ValidationWarningResponse, DrinkValidationWarning } from "../../../../types";
 
 export const prerender = false;
+
+// ============================================================================
+// GET Handler
+// ============================================================================
+
+export const GET: APIRoute = async ({ params, url, locals }) => {
+  const supabase = locals.supabase;
+
+  // Step 1: Authentication check
+  const userIdResult = getAuthenticatedUserId();
+  if (!userIdResult.success) return userIdResult.response;
+  const userId = userIdResult.value;
+
+  try {
+    // Step 2: Validate partyId from path params
+    const partyIdResult = parsePositiveIntParam(params.id, "partyId");
+    if (!partyIdResult.success) return partyIdResult.response;
+    const partyId = partyIdResult.value;
+
+    // Step 3: Validate query parameters
+    const queryParamsResult = PartyDrinksQueryParamsSchema.safeParse({
+      include_bac: url.searchParams.get("include_bac"),
+    });
+
+    if (!queryParamsResult.success) {
+      return createValidationErrorResponse(queryParamsResult.error, "Invalid query parameters");
+    }
+
+    const { include_bac } = queryParamsResult.data;
+
+    // Step 4: Verify party exists and belongs to user
+    const partyResult = await verifyPartyOwnership(supabase, partyId, userId, "GET drinks");
+    if (!partyResult.success) return partyResult.response;
+
+    // Step 5: Fetch drinks with optional BAC calculations
+    const drinksResponse = await getDrinksByPartyId(supabase, partyId, include_bac);
+
+    logInfo("Successfully retrieved party drinks", {
+      userId,
+      partyId,
+      drinkCount: drinksResponse.total_count,
+      includeBac: include_bac,
+    });
+
+    // Step 6: Return response
+    return createSuccessResponse(drinksResponse);
+  } catch (error) {
+    // Unexpected errors
+    logError("Unexpected error in GET drinks", {
+      userId,
+      partyId: params.id,
+      error: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    return CommonErrors.internalError();
+  }
+};
+
+// ============================================================================
+// POST Handler
+// ============================================================================
 
 export const POST: APIRoute = async ({ request, params, locals }) => {
   try {
@@ -55,9 +142,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       return CommonErrors.supabaseUnavailable();
     }
 
-    // DEVELOPMENT MODE: Use default user ID instead of authentication
-    // TODO: Replace with proper JWT authentication
-    const userId = DEFAULT_USER_ID;
+    // Authentication check
+    const userIdResult = getAuthenticatedUserId();
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
 
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
