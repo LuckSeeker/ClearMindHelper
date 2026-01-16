@@ -64,6 +64,7 @@ import {
   CommonErrors,
   getAuthenticatedUserId,
   verifyPartyOwnership,
+  validateSupabaseClient,
 } from "../../../../lib/api-helpers";
 import { addDrinkToParty, getDrinksByPartyId } from "../../../../lib/services/drink.service";
 import { AddDrinkSchema, PartyDrinksQueryParamsSchema } from "../../../../lib/validation/drink.validation";
@@ -136,11 +137,9 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
 export const POST: APIRoute = async ({ request, params, locals }) => {
   try {
     // Extract Supabase client from middleware
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     // Authentication check
     const userIdResult = getAuthenticatedUserId();

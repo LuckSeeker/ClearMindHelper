@@ -21,6 +21,40 @@ import { DEFAULT_USER_ID, type SupabaseClient } from "../db/supabase.client";
 export type ParseResult<T> = { success: true; value: T } | { success: false; response: Response };
 
 /**
+ * Validates Supabase client availability
+ * Returns ParseResult with client or 500 error response
+ *
+ * @param supabase - Supabase client from locals
+ * @param requestId - Optional request ID for logging
+ * @returns ParseResult with SupabaseClient or error Response
+ *
+ * @example
+ * const supabaseResult = validateSupabaseClient(locals.supabase, requestId);
+ * if (!supabaseResult.success) return supabaseResult.response;
+ * const supabase = supabaseResult.value;
+ */
+export function validateSupabaseClient(
+  supabase: SupabaseClient | undefined,
+  requestId?: string
+): ParseResult<SupabaseClient> {
+  if (!supabase) {
+    logError("Supabase client not available", { requestId });
+    return {
+      success: false,
+      response: createErrorResponse(
+        {
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Database connection not available",
+        },
+        500
+      ),
+    };
+  }
+
+  return { success: true, value: supabase };
+}
+
+/**
  * Parses and validates a positive integer ID from path parameter
  *
  * @param paramValue - Raw parameter value from URL path

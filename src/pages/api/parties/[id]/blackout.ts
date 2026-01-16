@@ -33,6 +33,7 @@ import { PartyIdParamSchema } from "../../../../lib/validation/party.validation"
 import { markBlackout } from "../../../../lib/services/party.service";
 import { logError, logInfo } from "../../../../lib/logger";
 import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
+import { validateSupabaseClient } from "../../../../lib/api-helpers";
 
 export const prerender = false;
 
@@ -46,31 +47,14 @@ export const prerender = false;
  * 4. Return response with new threshold
  */
 export const PATCH: APIRoute = async ({ params, locals }) => {
-  const supabase = locals.supabase;
+  // Step 1: Check Supabase client availability
+  const supabaseResult = validateSupabaseClient(locals.supabase);
+  if (!supabaseResult.success) return supabaseResult.response;
+  const supabase = supabaseResult.value;
 
   // DEVELOPMENT MODE: Use default user ID instead of authentication
   // TODO: Replace with proper JWT authentication
   const userId = DEFAULT_USER_ID;
-
-  // Step 1: Check Supabase client availability
-  if (!supabase) {
-    logError("Supabase client not available in locals");
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: "An unexpected error occurred. Please try again later.",
-        },
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-  }
-
   try {
     // Step 2: Validate path parameter
     const paramsValidation = PartyIdParamSchema.safeParse(params);

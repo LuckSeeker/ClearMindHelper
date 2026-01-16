@@ -11,7 +11,7 @@
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
-import type { Json } from "../../db/database.types";
+import { parseProfileSnapshot, profileSnapshotToJson } from "../type-guards";
 import type {
   AddDrinkCommand,
   AddDrinkResponseDTO,
@@ -312,6 +312,30 @@ export async function getLastDrink(supabase: SupabaseClient, partyId: number): P
 }
 
 /**
+ * Gets first drink in party
+ *
+ * @param supabase - Supabase client
+ * @param partyId - Party ID
+ * @returns First drink or null
+ */
+export async function getFirstDrink(supabase: SupabaseClient, partyId: number): Promise<Drink | null> {
+  const { data, error } = await supabase
+    .from("drinks")
+    .select("*")
+    .eq("party_id", partyId)
+    .order("consumed_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    logError("Failed to get first drink", { partyId, error: error.message });
+    throw new Error(`Database error: ${error.message}`);
+  }
+
+  return data;
+}
+
+/**
  * Gets total alcohol consumed in party
  *
  * @param supabase - Supabase client
@@ -497,11 +521,14 @@ export async function addDrinkToParty(
     throw error;
   }
 
-  // 4. Validate BAC limit would not be exceeded
-  const partyStartTime = new Date(party.started_at);
-  const timeElapsedHours = (consumedAt.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
+  // 4. Get first drink time or use current consumed_at for first drink
+  const firstDrink = await getFirstDrink(supabase, partyId);
+  const firstDrinkTime = firstDrink ? new Date(firstDrink.consumed_at) : consumedAt;
+  const timeElapsedHours = (consumedAt.getTime() - firstDrinkTime.getTime()) / (1000 * 60 * 60);
+
+  // 5. Validate BAC limit would not be exceeded
   const currentTotalAlcohol = await getTotalAlcoholConsumed(supabase, partyId);
-  const profileSnapshot = party.profile_snapshot as unknown as ProfileSnapshot;
+  const profileSnapshot = parseProfileSnapshot(party.profile_snapshot);
 
   const bacLimitValidation = validateBACLimit(
     command.volume_ml,
@@ -521,7 +548,7 @@ export async function addDrinkToParty(
     throw error;
   }
 
-  // 4. Check for validation warnings
+  // 6. Check for validation warnings
   const warnings: DrinkValidationWarning[] = [];
 
   // Check unrealistic volume
@@ -550,7 +577,7 @@ export async function addDrinkToParty(
     throw error;
   }
 
-  // 5. Calculate order_sequence
+  // 7. Calculate order_sequence
   const { data: maxOrderData } = await supabase
     .from("drinks")
     .select("order_sequence")
@@ -561,7 +588,7 @@ export async function addDrinkToParty(
 
   const orderSequence = (maxOrderData?.order_sequence ?? 0) + 1;
 
-  // 6. Create drink record
+  // 8. Create drink record
   const { data: drink, error: drinkError } = await supabase
     .from("drinks")
     .insert({
@@ -580,7 +607,7 @@ export async function addDrinkToParty(
     throw new Error(`Database error: ${drinkError.message}`);
   }
 
-  // 7. Calculate BAC
+  // 9. Calculate BAC
   const totalAlcoholGrams = await getTotalAlcoholConsumed(supabase, partyId);
   const timeElapsedMinutes = Math.round(timeElapsedHours * 60);
 
@@ -589,7 +616,7 @@ export async function addDrinkToParty(
   // Calculate metabolized alcohol
   const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
 
-  // 8. Insert BAC calculation
+  // 10. Insert BAC calculation
   const { data: bacCalculation, error: bacError } = await supabase
     .from("baccalculations")
     .insert({
@@ -599,7 +626,7 @@ export async function addDrinkToParty(
       calculated_bac: calculatedBAC,
       metabolized_alcohol_g: metabolizedAlcohol,
       time_since_first_drink_minutes: timeElapsedMinutes,
-      user_profile_snapshot: profileSnapshot as unknown as Json,
+      user_profile_snapshot: profileSnapshotToJson(profileSnapshot),
       calculation_timestamp: consumedAt.toISOString(),
     })
     .select()
@@ -610,7 +637,7 @@ export async function addDrinkToParty(
     throw new Error(`Database error: ${bacError.message}`);
   }
 
-  // 9. Get user threshold and manage alerts
+  // 11. Get user threshold and manage alerts
   const thresholdBAC = await getUserThreshold(supabase, userId);
   const alertsList: Alert[] = [];
 
@@ -771,7 +798,7 @@ export async function updateLastDrink(
   }
 
   // 5. Validate BAC limit with updated values
-  const profileSnapshot = party.profile_snapshot as unknown as ProfileSnapshot;
+  const profileSnapshot = parseProfileSnapshot(party.profile_snapshot);
   const partyStartTime = new Date(party.started_at);
   const consumedAt = new Date(drink.consumed_at);
   const timeElapsedHours = (consumedAt.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
@@ -1043,7 +1070,7 @@ export async function getDrinksByPartyId(
 
         if (bacData) {
           // Parse profile snapshot
-          const profileSnapshot = bacData.user_profile_snapshot as unknown as Json;
+          const profileSnapshot = parseProfileSnapshot(bacData.user_profile_snapshot);
           const parsedSnapshot: ProfileSnapshot = {
             height_cm: (profileSnapshot as { height_cm: number }).height_cm,
             weight_kg: (profileSnapshot as { weight_kg: number }).weight_kg,

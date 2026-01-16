@@ -39,6 +39,7 @@ import {
   createSuccessResponse,
   createErrorResponse,
   CommonErrors,
+  validateSupabaseClient,
 } from "../../../../../lib/api-helpers";
 import { updateLastDrink } from "../../../../../lib/services/drink.service";
 import { UpdateDrinkSchema } from "../../../../../lib/validation/drink.validation";
@@ -49,11 +50,9 @@ export const prerender = false;
 export const PUT: APIRoute = async ({ request, params, locals }) => {
   try {
     // Extract Supabase client from middleware
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     // DEVELOPMENT MODE: Use default user ID instead of authentication
     // TODO: Replace with proper JWT authentication

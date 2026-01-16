@@ -10,6 +10,7 @@
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
+import { parseProfileSnapshot } from "../type-guards";
 import type { Database } from "../../db/database.types";
 import type {
   PartyDTO,
@@ -204,7 +205,7 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
     total_ml_consumed: newParty.total_ml_consumed,
     blackout_marked: newParty.blackout_marked,
     blackout_marked_at: newParty.blackout_marked_at ? new Date(newParty.blackout_marked_at).toISOString() : null,
-    profile_snapshot: newParty.profile_snapshot as unknown as ProfileSnapshot,
+    profile_snapshot: parseProfileSnapshot(newParty.profile_snapshot),
     created_at: newParty.created_at ? new Date(newParty.created_at).toISOString() : new Date().toISOString(),
     updated_at: newParty.updated_at ? new Date(newParty.updated_at).toISOString() : new Date().toISOString(),
   };
@@ -375,7 +376,7 @@ export async function getPartyList(
     total_ml_consumed: party.total_ml_consumed,
     blackout_marked: party.blackout_marked,
     blackout_marked_at: party.blackout_marked_at ? new Date(party.blackout_marked_at).toISOString() : null,
-    profile_snapshot: party.profile_snapshot as unknown as ProfileSnapshot,
+    profile_snapshot: parseProfileSnapshot(party.profile_snapshot),
     created_at: party.created_at ? new Date(party.created_at).toISOString() : new Date().toISOString(),
     updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
     drinks_preview: drinksByParty.get(party.id) || [],
@@ -510,7 +511,7 @@ export async function getPartyDetails(
               time_since_first_drink_minutes: bacData.time_since_first_drink_minutes,
               algorithm_version: bacData.algorithm_version,
               metabolized_alcohol_g: bacData.metabolized_alcohol_g,
-              user_profile_snapshot: bacData.user_profile_snapshot as unknown as ProfileSnapshot,
+              user_profile_snapshot: parseProfileSnapshot(bacData.user_profile_snapshot),
               calculation_timestamp: new Date(bacData.calculation_timestamp || new Date()).toISOString(),
               created_at: bacData.created_at ? new Date(bacData.created_at).toISOString() : new Date().toISOString(),
             }
@@ -554,7 +555,7 @@ export async function getPartyDetails(
     total_ml_consumed: party.total_ml_consumed,
     blackout_marked: party.blackout_marked,
     blackout_marked_at: party.blackout_marked_at ? new Date(party.blackout_marked_at).toISOString() : null,
-    profile_snapshot: party.profile_snapshot as unknown as ProfileSnapshot,
+    profile_snapshot: parseProfileSnapshot(party.profile_snapshot),
     created_at: party.created_at ? new Date(party.created_at).toISOString() : new Date().toISOString(),
     updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
     drinks,

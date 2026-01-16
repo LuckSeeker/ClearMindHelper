@@ -279,10 +279,11 @@ export interface BACCalculationDTO
 export interface CurrentBACResponseDTO {
   party_id: number;
   current_bac: number;
-  threshold_bac: number;
+  calculated_at: string;
   time_since_last_drink_minutes: number;
-  is_approaching_threshold: boolean;
-  is_over_threshold: boolean;
+  time_since_first_drink_minutes: number;
+  current_threshold: number;
+  threshold_status: "safe" | "approaching" | "exceeded";
   estimated_time_to_sober_minutes: number | null;
 }
 

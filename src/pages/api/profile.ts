@@ -48,6 +48,7 @@ import {
   createValidationErrorResponse,
   createSuccessResponse,
   CommonErrors,
+  validateSupabaseClient,
 } from "../../lib/api-helpers";
 import type { UserProfileDTO } from "../../types";
 
@@ -55,11 +56,9 @@ export const prerender = false;
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     const userId = DEFAULT_USER_ID;
     const profile = await getProfile(userId, supabase);
@@ -92,11 +91,9 @@ export const GET: APIRoute = async ({ locals }) => {
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     const userId = DEFAULT_USER_ID;
 

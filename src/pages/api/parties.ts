@@ -58,6 +58,7 @@ import {
   createSuccessResponse,
   CommonErrors,
   createErrorResponse,
+  validateSupabaseClient,
 } from "../../lib/api-helpers";
 import type { PartyDTO } from "../../types";
 
@@ -65,11 +66,9 @@ export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     const userId = DEFAULT_USER_ID;
 
@@ -133,11 +132,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
 export const GET: APIRoute = async ({ url, locals }) => {
   try {
-    const supabase = locals.supabase;
-    if (!supabase) {
-      logError("Supabase client not available in locals");
-      return CommonErrors.supabaseUnavailable();
-    }
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
 
     const userId = DEFAULT_USER_ID;
 
