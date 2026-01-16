@@ -6,7 +6,7 @@
  */
 
 import type { SupabaseClient } from "../../db/supabase.client";
-import type { CurrentBACResponseDTO, ProfileSnapshot } from "../../types";
+import type { CurrentBACResponseDTO, ProfileSnapshot, BACHistoryResponseDTO, BACCalculationDTO } from "../../types";
 import { parseProfileSnapshot } from "../type-guards";
 
 // ============================================================================
@@ -263,5 +263,92 @@ export async function getCurrentBAC(
     current_threshold: threshold.threshold_bac,
     threshold_status: thresholdStatus,
     estimated_time_to_sober_minutes: timeToSober,
+  };
+}
+
+// ============================================================================
+// BAC History Service Function
+// ============================================================================
+
+/**
+ * Get complete BAC calculation history for a party
+ *
+ * This function:
+ * 1. Verifies party ownership
+ * 2. Retrieves all BAC calculations in chronological order
+ * 3. Fetches maximum BAC from party record
+ * 4. Transforms database records to DTOs
+ *
+ * @param supabase - Supabase client with authenticated user
+ * @param partyId - ID of the party
+ * @param userId - Authenticated user ID
+ * @returns Complete BAC history with all calculations
+ * @throws Error with specific message for various failure scenarios
+ */
+export async function getBACHistory(
+  supabase: SupabaseClient,
+  partyId: number,
+  userId: string
+): Promise<BACHistoryResponseDTO> {
+  // Step 1: Fetch party with ownership verification and max BAC
+  const { data: party, error: partyError } = await supabase
+    .from("parties")
+    .select("user_id, bac_estimate_max")
+    .eq("id", partyId)
+    .single();
+
+  // Handle party not found
+  if (partyError || !party) {
+    throw new Error("PARTY_NOT_FOUND");
+  }
+
+  // Verify ownership
+  if (party.user_id !== userId) {
+    throw new Error("FORBIDDEN");
+  }
+
+  // Step 2: Fetch all BAC calculations for this party ordered chronologically
+  const { data: bacCalculations, error: bacError } = await supabase
+    .from("baccalculations")
+    .select("*")
+    .eq("party_id", partyId)
+    .order("calculation_timestamp", { ascending: true });
+
+  // Handle database errors
+  if (bacError) {
+    throw new Error("DATABASE_ERROR");
+  }
+
+  // Step 3: Transform database records to DTOs
+  const bacCalculationDTOs: BACCalculationDTO[] = (bacCalculations || []).map((calc) => {
+    // Parse JSONB user_profile_snapshot to ProfileSnapshot
+    const profileSnapshot = parseProfileSnapshot(calc.user_profile_snapshot);
+
+    // Ensure calculation_timestamp is not null (should never happen in practice)
+    if (!calc.calculation_timestamp) {
+      throw new Error("DATABASE_ERROR");
+    }
+
+    return {
+      id: calc.id,
+      party_id: calc.party_id,
+      user_id: calc.user_id,
+      drink_id: calc.drink_id,
+      calculated_bac: calc.calculated_bac,
+      calculation_timestamp: calc.calculation_timestamp,
+      algorithm_version: calc.algorithm_version || "1.0", // Default if null
+      user_profile_snapshot: profileSnapshot,
+      time_since_first_drink_minutes: calc.time_since_first_drink_minutes || 0,
+      metabolized_alcohol_g: calc.metabolized_alcohol_g || 0,
+      created_at: calc.created_at || new Date().toISOString(),
+    };
+  });
+
+  // Step 4: Return formatted response
+  return {
+    party_id: partyId,
+    bac_calculations: bacCalculationDTOs,
+    bac_estimate_max: party.bac_estimate_max,
+    total_count: bacCalculationDTOs.length,
   };
 }
