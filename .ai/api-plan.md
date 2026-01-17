@@ -752,7 +752,7 @@ Authorization: Bearer {access_token}
 
 **Business Logic:**
 - Returns threshold with is_current = true
-- If no threshold exists, creates default threshold (1.6‰)
+- If no threshold exists, creates default threshold (1.0‰)
 - Corresponds to US-010, US-014
 
 ---
@@ -1398,7 +1398,7 @@ Response 201:
     {
       "alert_type": "approaching_threshold",
       "bac_at_alert": 0.28,
-      "threshold": 1.6
+      "threshold": 1.0
     }
   ]
 }

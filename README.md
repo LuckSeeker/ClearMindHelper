@@ -25,7 +25,7 @@ ClearMindHelper addresses a critical gap in personal safety awareness: users oft
 - **Real-Time BAC Calculation**: Immediate BAC estimation using the Widmark formula
 - **Smart Alerts**:
   - Single notification when approaching the threshold
-  - Repeated alerts every 5 minutes after exceeding the threshold (default: 1.6‰)
+   - Repeated alerts every 5 minutes after exceeding the threshold (default: 1.0‰)
 - **Input Validation**: Warnings for unrealistic consumption rates or quantities
 - **Party History**: Complete record of past sessions with analytics
 - **Adaptive Thresholds**: Automatic adjustment based on user's drinking history and blackout occurrences
