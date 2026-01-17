@@ -1,3 +1,61 @@
+import { getPartyList } from "../../lib/services/party.service";
+import { PartyListQuerySchema } from "../../lib/validation/party.validation";
+import type { PartyListResponseDTO } from "../../types";
+export const GET: APIRoute = async ({ url, locals }) => {
+  try {
+    const supabaseResult = validateSupabaseClient(locals.supabase);
+    if (!supabaseResult.success) return supabaseResult.response;
+    const supabase = supabaseResult.value;
+
+    // DEVELOPMENT MODE: Use default user ID instead of authentication
+    // TODO: Replace with proper JWT authentication
+    const userId = DEFAULT_USER_ID;
+
+    // Parse and validate query parameters
+    const searchParams = url.searchParams;
+    const queryParams = {
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
+      status: searchParams.get("status") ?? undefined,
+      sort: searchParams.get("sort") ?? undefined,
+      order: searchParams.get("order") ?? undefined,
+    };
+    const validationResult = PartyListQuerySchema.safeParse(queryParams);
+    if (!validationResult.success) {
+      const errors = validationResult.error.errors;
+      logError("Validation failed for GET /api/parties", { userId, errors });
+      return createErrorResponse(
+        {
+          code: "VALIDATION_FAILED",
+          message: "Invalid query parameters",
+        },
+        400,
+        { errors: errors.map((err) => ({ field: err.path.join("."), message: err.message, code: err.code })) }
+      );
+    }
+    const { page, limit, status, sort, order } = validationResult.data;
+
+    try {
+      const result = await getPartyList(supabase, userId, { ...(status && { status }) }, { page, limit, sort, order });
+      logInfo("Party list retrieved successfully", {
+        userId,
+        page,
+        limit,
+        totalCount: result.pagination.total_count,
+      });
+      return createSuccessResponse<PartyListResponseDTO>(result, 200);
+    } catch (serviceError) {
+      if (serviceError instanceof Error) {
+        logError("Service error in GET /api/parties", { userId, error: serviceError.message });
+        return CommonErrors.databaseError("Failed to retrieve parties. Please try again later.");
+      }
+      throw serviceError;
+    }
+  } catch (error) {
+    logError("Unexpected error in GET /api/parties", { error });
+    return CommonErrors.internalError();
+  }
+};
 /**
  * POST /api/parties
  *
@@ -50,14 +108,14 @@ import type { APIRoute } from "astro";
 
 import { DEFAULT_USER_ID } from "../../db/supabase.client";
 import { logError, logInfo } from "../../lib/logger";
-import { startParty, getPartyList } from "../../lib/services/party.service";
-import { StartPartySchema, PartyListQuerySchema } from "../../lib/validation/party.validation";
+import { startParty } from "../../lib/services/party.service";
+import { StartPartySchema } from "../../lib/validation/party.validation";
 import {
   parseJsonBody,
   createValidationErrorResponse,
-  createSuccessResponse,
   CommonErrors,
   createErrorResponse,
+  createSuccessResponse,
   validateSupabaseClient,
 } from "../../lib/api-helpers";
 import type { PartyDTO } from "../../types";
@@ -122,59 +180,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
         return CommonErrors.internalError("Failed to create party. Please try again later.");
       }
 
-      throw serviceError;
+      logError("Unknown error in POST /api/parties", { error: serviceError });
+      return CommonErrors.internalError();
     }
   } catch (error) {
-    logError("Unexpected error in POST /api/parties:", error);
-    return CommonErrors.internalError();
-  }
-};
-
-export const GET: APIRoute = async ({ url, locals }) => {
-  try {
-    const supabaseResult = validateSupabaseClient(locals.supabase);
-    if (!supabaseResult.success) return supabaseResult.response;
-    const supabase = supabaseResult.value;
-
-    const userId = DEFAULT_USER_ID;
-
-    const searchParams = url.searchParams;
-    const queryParams = {
-      page: searchParams.get("page") ?? undefined,
-      limit: searchParams.get("limit") ?? undefined,
-      status: searchParams.get("status") ?? undefined,
-      sort: searchParams.get("sort") ?? undefined,
-      order: searchParams.get("order") ?? undefined,
-    };
-
-    const validationResult = PartyListQuerySchema.safeParse(queryParams);
-    if (!validationResult.success) {
-      return createValidationErrorResponse(validationResult.error, "Invalid query parameters");
-    }
-
-    const { page, limit, status, sort, order } = validationResult.data;
-
-    try {
-      const result = await getPartyList(supabase, userId, { ...(status && { status }) }, { page, limit, sort, order });
-
-      logInfo("Party list retrieved successfully", {
-        userId,
-        page,
-        limit,
-        totalCount: result.pagination.total_count,
-      });
-
-      return createSuccessResponse(result);
-    } catch (serviceError) {
-      if (serviceError instanceof Error) {
-        logError("Service error in GET /api/parties", { userId, error: serviceError.message });
-        return CommonErrors.internalError("Failed to retrieve parties. Please try again later.");
-      }
-
-      throw serviceError;
-    }
-  } catch (error) {
-    logError("Unexpected error in GET /api/parties:", error);
+    logError("Unexpected error in POST /api/parties", { error });
     return CommonErrors.internalError();
   }
 };

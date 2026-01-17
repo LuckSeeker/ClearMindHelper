@@ -77,34 +77,9 @@ export type ClosePartyInput = z.infer<typeof ClosePartySchema>;
  * - sort: Sort column ('started_at' | 'bac_estimate_max'), defaults to 'started_at'
  * - order: Sort order ('asc' | 'desc'), defaults to 'desc'
  */
-export const PartyListQuerySchema = z.object({
-  page: z.coerce
-    .number({
-      invalid_type_error: "page must be a number",
-    })
-    .int({
-      message: "page must be an integer",
-    })
-    .min(1, {
-      message: "page must be greater than or equal to 1",
-    })
-    .optional()
-    .default(1),
-  limit: z.coerce
-    .number({
-      invalid_type_error: "limit must be a number",
-    })
-    .int({
-      message: "limit must be an integer",
-    })
-    .min(1, {
-      message: "limit must be greater than or equal to 1",
-    })
-    .max(100, {
-      message: "limit must be less than or equal to 100",
-    })
-    .optional()
-    .default(20),
+import { PaginationQuerySchema } from "./pagination.validation";
+
+export const PartyListQuerySchema = PaginationQuerySchema.extend({
   status: z
     .enum(["ongoing", "closed"], {
       invalid_type_error: "status must be either 'ongoing' or 'closed'",

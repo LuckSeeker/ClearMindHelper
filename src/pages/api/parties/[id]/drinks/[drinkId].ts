@@ -51,7 +51,10 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
   try {
     // Extract Supabase client from middleware
     const supabaseResult = validateSupabaseClient(locals.supabase);
-    if (!supabaseResult.success) return supabaseResult.response;
+    if (!supabaseResult.success) {
+      logError("Supabase client validation failed in PUT drink", supabaseResult.response);
+      return supabaseResult.response;
+    }
     const supabase = supabaseResult.value;
 
     // DEVELOPMENT MODE: Use default user ID instead of authentication
@@ -60,21 +63,31 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
 
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
-    if (!partyIdResult.success) return partyIdResult.response;
+    if (!partyIdResult.success) {
+      logError("Invalid partyId in PUT drink", partyIdResult.response);
+      return partyIdResult.response;
+    }
     const partyId = partyIdResult.value;
 
     // Parse and validate drinkId from path parameter
     const drinkIdResult = parsePositiveIntParam(params.drinkId, "drinkId");
-    if (!drinkIdResult.success) return drinkIdResult.response;
+    if (!drinkIdResult.success) {
+      logError("Invalid drinkId in PUT drink", drinkIdResult.response);
+      return drinkIdResult.response;
+    }
     const drinkId = drinkIdResult.value;
 
     // Parse and validate request body
     const bodyResult = await parseJsonBody(request);
-    if (!bodyResult.success) return bodyResult.response;
+    if (!bodyResult.success) {
+      logError("Invalid request body in PUT drink", bodyResult.response);
+      return bodyResult.response;
+    }
 
     // Validate request body with Zod schema
     const validationResult = UpdateDrinkSchema.safeParse(bodyResult.value);
     if (!validationResult.success) {
+      logError("Request body validation failed in PUT drink", validationResult.error);
       return createValidationErrorResponse(validationResult.error);
     }
 
@@ -93,12 +106,25 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
       };
 
       // Handle specific error codes
-      if (error.code === "PARTY_NOT_FOUND") return CommonErrors.partyNotFound();
-      if (error.code === "DRINK_NOT_FOUND") return CommonErrors.drinkNotFound();
-      if (error.code === "FORBIDDEN") return CommonErrors.forbidden("You don't have permission to edit this drink");
-      if (error.code === "PARTY_CLOSED") return CommonErrors.partyClosed("edit drinks in");
+      if (error.code === "PARTY_NOT_FOUND") {
+        logError("Party not found in PUT drink", { error: error.message });
+        return CommonErrors.partyNotFound();
+      }
+      if (error.code === "DRINK_NOT_FOUND") {
+        logError("Drink not found in PUT drink", { error: error.message });
+        return CommonErrors.drinkNotFound();
+      }
+      if (error.code === "FORBIDDEN") {
+        logError("Forbidden in PUT drink", { error: error.message });
+        return CommonErrors.forbidden("You don't have permission to edit this drink");
+      }
+      if (error.code === "PARTY_CLOSED") {
+        logError("Party closed in PUT drink", { error: error.message });
+        return CommonErrors.partyClosed("edit drinks in");
+      }
 
       if (error.code === "NOT_LAST_DRINK") {
+        logError("Not last drink edit attempt in PUT drink", { error: error.message });
         return createErrorResponse(
           {
             code: "NOT_LAST_DRINK",
@@ -109,6 +135,7 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
       }
 
       if (error.code === "BAC_LIMIT_EXCEEDED") {
+        logError("BAC limit exceeded in PUT drink", { error: error.message });
         return createErrorResponse(
           {
             code: "BAC_LIMIT_EXCEEDED",

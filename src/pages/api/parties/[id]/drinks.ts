@@ -81,13 +81,19 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
 
   // Step 1: Authentication check
   const userIdResult = getAuthenticatedUserId();
-  if (!userIdResult.success) return userIdResult.response;
+  if (!userIdResult.success) {
+    logError("Authentication failed in GET drinks", userIdResult.response);
+    return userIdResult.response;
+  }
   const userId = userIdResult.value;
 
   try {
     // Step 2: Validate partyId from path params
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
-    if (!partyIdResult.success) return partyIdResult.response;
+    if (!partyIdResult.success) {
+      logError("Invalid partyId in GET drinks", partyIdResult.response);
+      return partyIdResult.response;
+    }
     const partyId = partyIdResult.value;
 
     // Step 3: Validate query parameters
@@ -96,6 +102,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     });
 
     if (!queryParamsResult.success) {
+      logError("Invalid query parameters in GET drinks", queryParamsResult.error);
       return createValidationErrorResponse(queryParamsResult.error, "Invalid query parameters");
     }
 
@@ -103,7 +110,10 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
 
     // Step 4: Verify party exists and belongs to user
     const partyResult = await verifyPartyOwnership(supabase, partyId, userId, "GET drinks");
-    if (!partyResult.success) return partyResult.response;
+    if (!partyResult.success) {
+      logError("Party ownership verification failed in GET drinks", partyResult.response);
+      return partyResult.response;
+    }
 
     // Step 5: Fetch drinks with optional BAC calculations
     const drinksResponse = await getDrinksByPartyId(supabase, partyId, include_bac);
@@ -138,26 +148,39 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
   try {
     // Extract Supabase client from middleware
     const supabaseResult = validateSupabaseClient(locals.supabase);
-    if (!supabaseResult.success) return supabaseResult.response;
+    if (!supabaseResult.success) {
+      logError("Supabase client validation failed in POST drinks", supabaseResult.response);
+      return supabaseResult.response;
+    }
     const supabase = supabaseResult.value;
 
     // Authentication check
     const userIdResult = getAuthenticatedUserId();
-    if (!userIdResult.success) return userIdResult.response;
+    if (!userIdResult.success) {
+      logError("Authentication failed in POST drinks", userIdResult.response);
+      return userIdResult.response;
+    }
     const userId = userIdResult.value;
 
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
-    if (!partyIdResult.success) return partyIdResult.response;
+    if (!partyIdResult.success) {
+      logError("Invalid partyId in POST drinks", partyIdResult.response);
+      return partyIdResult.response;
+    }
     const partyId = partyIdResult.value;
 
     // Parse and validate request body
     const bodyResult = await parseJsonBody(request);
-    if (!bodyResult.success) return bodyResult.response;
+    if (!bodyResult.success) {
+      logError("Invalid request body in POST drinks", bodyResult.response);
+      return bodyResult.response;
+    }
 
     // Validate request body with Zod schema
     const validation = AddDrinkSchema.safeParse(bodyResult.value);
     if (!validation.success) {
+      logError("Request body validation failed in POST drinks", validation.error);
       return createValidationErrorResponse(validation.error);
     }
 
@@ -189,13 +212,25 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
       }
 
       // Handle common business logic errors
-      if (err.code === "PARTY_NOT_FOUND") return CommonErrors.partyNotFound();
-      if (err.code === "FORBIDDEN") return CommonErrors.forbidden();
-      if (err.code === "PARTY_CLOSED") return CommonErrors.partyClosed("add drinks to");
+      if (err.code === "PARTY_NOT_FOUND") {
+        logError("Party not found in POST drinks", { error: err.message });
+        return CommonErrors.partyNotFound();
+      }
+      if (err.code === "FORBIDDEN") {
+        logError("Forbidden in POST drinks", { error: err.message });
+        return CommonErrors.forbidden();
+      }
+      if (err.code === "PARTY_CLOSED") {
+        logError("Party closed in POST drinks", { error: err.message });
+        return CommonErrors.partyClosed("add drinks to");
+      }
 
       // Handle other known errors with code and status
       const errorResponse = createErrorResponseFromThrown(err);
-      if (errorResponse) return errorResponse;
+      if (errorResponse) {
+        logError("Known error in POST drinks", { error: err.message });
+        return errorResponse;
+      }
     }
 
     // Handle unexpected errors (500)

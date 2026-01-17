@@ -26,6 +26,7 @@ import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
 import { PartyIdParamSchema, ClosePartySchema } from "../../../../lib/validation/party.validation";
 import { closeParty } from "../../../../lib/services/party.service";
 import { logError, logInfo } from "../../../../lib/logger";
+import { createErrorResponse } from "../../../../lib/api-helpers";
 
 // Disable prerendering for this API route
 export const prerender = false;
@@ -42,20 +43,7 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
 
     if (!supabase) {
       logError("Supabase client not available", { requestId });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Database connection not available",
-          },
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      return createErrorResponse({ code: "INTERNAL_SERVER_ERROR", message: "Database connection not available" }, 500);
     }
 
     // DEVELOPMENT MODE: Use default user ID instead of authentication
@@ -67,30 +55,23 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
 
     if (!paramsValidation.success) {
       const errors = paramsValidation.error.errors;
-      logInfo("Invalid party ID parameter", {
+      logError("Invalid party ID parameter", {
         requestId,
         userId,
         partyId: params.id,
         errors,
       });
 
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_PARTY_ID",
-            message: "Party ID must be a positive integer",
-            details: {
-              field: "id",
-              value: params.id,
-              issues: errors.map((e) => e.message),
-            },
-          },
-        }),
+      return createErrorResponse(
         {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          code: "INVALID_PARTY_ID",
+          message: "Party ID must be a positive integer",
+        },
+        400,
+        {
+          field: "id",
+          value: params.id,
+          issues: errors.map((e) => e.message),
         }
       );
     }
@@ -107,26 +88,19 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
         requestBody = {};
       }
     } catch (error) {
-      logInfo("Failed to parse request body", {
+      logError("Failed to parse request body", {
         requestId,
         userId,
         partyId,
         error: error instanceof Error ? error.message : "Unknown error",
       });
 
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_REQUEST_BODY",
-            message: "Request body must be valid JSON",
-          },
-        }),
+      return createErrorResponse(
         {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+          code: "INVALID_REQUEST_BODY",
+          message: "Request body must be valid JSON",
+        },
+        400
       );
     }
 
@@ -134,7 +108,7 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
 
     if (!bodyValidation.success) {
       const errors = bodyValidation.error.errors;
-      logInfo("Invalid request body", {
+      logError("Invalid request body", {
         requestId,
         userId,
         partyId,
@@ -142,24 +116,17 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
         errors,
       });
 
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Invalid request body",
-            details: {
-              issues: errors.map((e) => ({
-                field: e.path.join("."),
-                message: e.message,
-              })),
-            },
-          },
-        }),
+      return createErrorResponse(
         {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
+          code: "VALIDATION_ERROR",
+          message: "Invalid request body",
+        },
+        400,
+        {
+          issues: errors.map((e) => ({
+            field: e.path.join("."),
+            message: e.message,
+          })),
         }
       );
     }
@@ -190,78 +157,56 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
 
         // Party not found
         if (errorMessage === "PARTY_NOT_FOUND") {
-          logInfo("Party not found or access denied", {
+          logError("Party not found or access denied", {
             requestId,
             userId,
             partyId,
           });
 
-          return new Response(
-            JSON.stringify({
-              error: {
-                code: "PARTY_NOT_FOUND",
-                message: "Party not found or you don't have access to it",
-              },
-            }),
+          return createErrorResponse(
             {
-              status: 404,
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
+              code: "PARTY_NOT_FOUND",
+              message: "Party not found or you don't have access to it",
+            },
+            404
           );
         }
 
         // Party already closed
         if (errorMessage === "PARTY_ALREADY_CLOSED") {
-          logInfo("Attempt to close already closed party", {
+          logError("Attempt to close already closed party", {
             requestId,
             userId,
             partyId,
           });
 
-          return new Response(
-            JSON.stringify({
-              error: {
-                code: "PARTY_ALREADY_CLOSED",
-                message: "Party is already closed and cannot be closed again",
-              },
-            }),
+          return createErrorResponse(
             {
-              status: 400,
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
+              code: "PARTY_ALREADY_CLOSED",
+              message: "Party is already closed and cannot be closed again",
+            },
+            400
           );
         }
 
         // Invalid ended_at timestamp
         if (errorMessage === "INVALID_ENDED_AT") {
-          logInfo("Invalid ended_at timestamp", {
+          logError("Invalid ended_at timestamp", {
             requestId,
             userId,
             partyId,
             endedAt: closePartyCommand.ended_at,
           });
 
-          return new Response(
-            JSON.stringify({
-              error: {
-                code: "INVALID_ENDED_AT",
-                message:
-                  "ended_at must be after party start time and within 5 minutes of current time (past or future)",
-                details: {
-                  field: "ended_at",
-                  value: closePartyCommand.ended_at,
-                },
-              },
-            }),
+          return createErrorResponse(
             {
-              status: 400,
-              headers: {
-                "Content-Type": "application/json",
-              },
+              code: "INVALID_ENDED_AT",
+              message: "ended_at must be after party start time and within 5 minutes of current time (past or future)",
+            },
+            400,
+            {
+              field: "ended_at",
+              value: closePartyCommand.ended_at,
             }
           );
         }
@@ -279,19 +224,12 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: "An unexpected error occurred while closing the party",
-        },
-      }),
+    return createErrorResponse(
       {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+        code: "INTERNAL_SERVER_ERROR",
+        message: "An unexpected error occurred while closing the party",
+      },
+      500
     );
   }
 };

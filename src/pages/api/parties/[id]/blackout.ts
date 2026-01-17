@@ -32,6 +32,7 @@ import type { APIRoute } from "astro";
 import { PartyIdParamSchema } from "../../../../lib/validation/party.validation";
 import { markBlackout } from "../../../../lib/services/party.service";
 import { logError, logInfo } from "../../../../lib/logger";
+import { createErrorResponse } from "../../../../lib/api-helpers";
 import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
 import { validateSupabaseClient } from "../../../../lib/api-helpers";
 
@@ -65,20 +66,13 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
         partyId: params.id,
         error: firstError.message,
       });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: "INVALID_PARTY_ID",
-            message: firstError.message,
-            details: { field: firstError.path.join("."), value: params.id },
-          },
-        }),
+      return createErrorResponse(
         {
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+          code: "INVALID_PARTY_ID",
+          message: firstError.message,
+        },
+        400,
+        { field: firstError.path.join("."), value: params.id }
       );
     }
 
@@ -110,19 +104,9 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
         code: err.code,
         message: err.message,
       });
-      return new Response(
-        JSON.stringify({
-          error: {
-            code: err.code,
-            message: err.message,
-          },
-        }),
-        {
-          status: err.status,
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
+      return createErrorResponse(
+        { code: err.code, message: err.message },
+        err.status
       );
     }
 
@@ -134,19 +118,9 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    return new Response(
-      JSON.stringify({
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred. Please try again later.",
-        },
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
+    return createErrorResponse(
+      { code: "INTERNAL_ERROR", message: "An unexpected error occurred. Please try again later." },
+      500
     );
   }
 };

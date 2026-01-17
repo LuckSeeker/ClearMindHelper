@@ -378,6 +378,18 @@ export function createValidationErrorResponse(
  */
 export const CommonErrors = {
   /**
+   * 500 - Database error
+   */
+  databaseError(message = "Database error. Please try again later."): Response {
+    return createErrorResponse(
+      {
+        code: "DATABASE_ERROR",
+        message,
+      },
+      500
+    );
+  },
+  /**
    * 500 - Internal server error when Supabase client is unavailable
    */
   supabaseUnavailable(): Response {

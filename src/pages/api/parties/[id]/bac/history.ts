@@ -32,6 +32,7 @@ import {
   parsePositiveIntParam,
   createSuccessResponse,
   createErrorResponse,
+  CommonErrors,
   getAuthenticatedUserId,
 } from "../../../../../lib/api-helpers";
 import type { BACHistoryResponseDTO } from "../../../../../types";
@@ -112,10 +113,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
           partyId: params.id,
           error: error instanceof Error ? error.stack : errorMessage,
         });
-        return createErrorResponse(
-          { code: "DATABASE_ERROR", message: "Failed to retrieve BAC history due to a database error" },
-          500
-        );
+        return CommonErrors.databaseError("Failed to retrieve BAC history due to a database error");
 
       default:
         // Unexpected errors

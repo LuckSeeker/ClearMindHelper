@@ -47,6 +47,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     // Step 2: Validate party ID parameter
     const validation = PartyIdParamSchema.safeParse({ id: params.id });
     if (!validation.success) {
+      logError("Invalid party ID parameter", validation.error);
       return createValidationErrorResponse(validation.error, "Party ID must be a positive integer");
     }
 
@@ -59,7 +60,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
   } catch (error) {
     // Handle service errors
     if (error instanceof Error) {
-      if (error.message === "PARTY_NOT_FOUND") return CommonErrors.partyNotFound();
+      if (error.message === "PARTY_NOT_FOUND") {
+        logError("Party not found", { error: error.message });
+        return CommonErrors.partyNotFound();
+      }
       if (error.message.startsWith("Database error:")) {
         logError("Database error while fetching party details", { error: error.message });
         return CommonErrors.internalError();
