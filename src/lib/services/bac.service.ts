@@ -17,7 +17,7 @@ import { parseProfileSnapshot } from "../type-guards";
  * Widmark formula constants for BAC calculation
  * Based on scientific research on alcohol metabolism
  */
-const WIDMARK_CONSTANTS = {
+export const WIDMARK_CONSTANTS = {
   /** Water distribution coefficient for males */
   MALE_R: 0.68,
   /** Water distribution coefficient for females */

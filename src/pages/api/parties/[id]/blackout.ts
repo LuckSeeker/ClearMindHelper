@@ -104,10 +104,7 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
         code: err.code,
         message: err.message,
       });
-      return createErrorResponse(
-        { code: err.code, message: err.message },
-        err.status
-      );
+      return createErrorResponse({ code: err.code, message: err.message }, err.status);
     }
 
     // Handle unexpected errors

@@ -5,6 +5,7 @@ import {
   getCurrentThreshold,
   createDefaultThreshold,
 } from "../../../lib/services/threshold.service";
+import { updateAlertsAfterThresholdChange } from "../../../lib/services/alert.service";
 import type { UserThresholdDTO, APIError, CurrentThresholdResponseDTO } from "../../../types";
 import { logError, logInfo } from "../../../lib/logger";
 import {
@@ -44,6 +45,8 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
       return new Response(JSON.stringify(threshold), { status: 400 });
     }
+    // Aktualizuj alerty po zmianie progu
+    await updateAlertsAfterThresholdChange(supabase, user_id);
     return new Response(JSON.stringify(threshold), { status: 200 });
   } catch (err) {
     logError("PUT /api/thresholds/current", err);
