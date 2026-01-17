@@ -3,6 +3,7 @@ import type { SupabaseClient } from "../../db/supabase.client";
 import type { ThresholdReason } from "../../types";
 import { logEvent } from "./event.service";
 import { logError } from "../../lib/logger";
+import type { APIError } from "../../types";
 
 /**
  * Pobiera historię progów użytkownika z paginacją, sortowane malejąco po created_at.
@@ -106,5 +107,97 @@ export async function createDefaultThreshold(userId: string, supabase: SupabaseC
   return {
     ...data,
     created_at: data.created_at,
+  };
+}
+
+/**
+ * Aktualizuje bieżący próg użytkownika (manual_override).
+ * Tworzy nowy rekord, dezaktywuje poprzedni, loguje event.
+ */
+export async function updateUserThreshold(
+  userId: string,
+  threshold_bac: number,
+  supabase: SupabaseClient
+): Promise<UserThresholdDTO | APIError> {
+  // 1. Pobierz aktualny próg (is_current = true)
+  const { data: current, error: getError } = await supabase
+    .from("userthresholds")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_current", true)
+    .single();
+
+  if (getError && getError.code !== "PGRST116") {
+    logError(`updateUserThreshold: DB error on get current for user_id=${userId}`, getError);
+    return {
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Database error",
+        details: { db: getError },
+      },
+    };
+  }
+
+  // 2. Jeśli nie ma profilu/progu - 404
+  if (!current) {
+    return {
+      error: {
+        code: "NOT_FOUND",
+        message: "User profile or current threshold not found",
+      },
+    };
+  }
+
+  // 3. Dezaktywuj poprzedni próg (is_current = false)
+  const { error: updateError } = await supabase
+    .from("userthresholds")
+    .update({ is_current: false })
+    .eq("id", current.id);
+  if (updateError) {
+    logError(`updateUserThreshold: DB error on update is_current=false for id=${current.id}`, updateError);
+    return {
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to deactivate previous threshold",
+        details: { db: updateError },
+      },
+    };
+  }
+
+  // 4. Dodaj nowy rekord z is_current = true, reason = 'manual_override'
+  const insertData = {
+    user_id: userId,
+    threshold_bac,
+    is_current: true,
+    reason: "manual_override" as ThresholdReason,
+    trigger_party_id: null,
+  };
+  const { data: newThreshold, error: insertError } = await supabase
+    .from("userthresholds")
+    .insert(insertData)
+    .select()
+    .single();
+  if (insertError || !newThreshold) {
+    logError(`updateUserThreshold: DB error on insert new threshold for user_id=${userId}`, insertError);
+    return {
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Failed to create new threshold",
+        details: { db: insertError },
+      },
+    };
+  }
+  if (!newThreshold.created_at) {
+    logError(`updateUserThreshold: Missing created_at for userthresholds.id=${newThreshold.id}`);
+    return {
+      error: {
+        code: "DATABASE_ERROR",
+        message: "Database integrity error: missing created_at",
+      },
+    };
+  }
+  return {
+    ...newThreshold,
+    created_at: newThreshold.created_at,
   };
 }

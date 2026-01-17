@@ -1,10 +1,55 @@
 import type { APIRoute } from "astro";
-import { getCurrentThreshold, createDefaultThreshold } from "../../../lib/services/threshold.service";
-import type { CurrentThresholdResponseDTO } from "../../../types";
+import { updateThresholdSchema } from "../../../lib/validation/threshold.validation";
+import {
+  updateUserThreshold,
+  getCurrentThreshold,
+  createDefaultThreshold,
+} from "../../../lib/services/threshold.service";
+import type { UserThresholdDTO, APIError, CurrentThresholdResponseDTO } from "../../../types";
 import { logError, logInfo } from "../../../lib/logger";
-import { getAuthenticatedUserId, validateSupabaseClient, createErrorResponse } from "../../../lib/api-helpers";
+import {
+  getAuthenticatedUserId,
+  validateSupabaseClient,
+  createValidationErrorResponse,
+  CommonErrors,
+} from "../../../lib/api-helpers";
 
 export const prerender = false;
+
+export const PUT: APIRoute = async ({ request, locals }) => {
+  // 1. Validate Supabase client
+  const supabaseResult = validateSupabaseClient(locals.supabase);
+  if (!supabaseResult.success) return supabaseResult.response;
+  const supabase = supabaseResult.value;
+
+  // 2. Autoryzacja
+  const userIdResult = getAuthenticatedUserId();
+  if (!userIdResult.success) return userIdResult.response;
+  const user_id = userIdResult.value;
+
+  // 3. Walidacja danych wejściowych
+  const body = await request.json();
+  const validationResult = updateThresholdSchema.safeParse(body);
+  if (!validationResult.success) {
+    return createValidationErrorResponse(validationResult.error, "Invalid input");
+  }
+  const input = validationResult.data;
+
+  // 4. Wywołanie logiki biznesowej
+  try {
+    const threshold: UserThresholdDTO | APIError = await updateUserThreshold(user_id, input.threshold_bac, supabase);
+    if ("error" in threshold) {
+      if (threshold.error.code === "NOT_FOUND") {
+        return new Response(JSON.stringify(threshold), { status: 404 });
+      }
+      return new Response(JSON.stringify(threshold), { status: 400 });
+    }
+    return new Response(JSON.stringify(threshold), { status: 200 });
+  } catch (err) {
+    logError("PUT /api/thresholds/current", err);
+    return CommonErrors.internalError();
+  }
+};
 
 export const GET: APIRoute = async ({ locals }) => {
   // 1. Validate Supabase client
@@ -51,12 +96,6 @@ export const GET: APIRoute = async ({ locals }) => {
       userId,
       error: error instanceof Error ? error.message : String(error),
     });
-    return createErrorResponse(
-      {
-        code: "INTERNAL_SERVER_ERROR",
-        message: "An unexpected error occurred",
-      },
-      500
-    );
+    return CommonErrors.internalError();
   }
 };
