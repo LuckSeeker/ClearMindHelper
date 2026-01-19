@@ -157,7 +157,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Authentication check
     const userIdResult = getAuthenticatedUserId();
     if (!userIdResult.success) {
-      logError("Authentication failed in POST drinks", userIdResult.response);
+      logError("Authentication failed in POST drinks", undefined, {
+        status: userIdResult.response.status,
+        message: "Authentication failed",
+      });
       return userIdResult.response;
     }
     const userId = userIdResult.value;
@@ -165,7 +168,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
     if (!partyIdResult.success) {
-      logError("Invalid partyId in POST drinks", partyIdResult.response);
+      logError("Invalid partyId in POST drinks", undefined, {
+        status: partyIdResult.response.status,
+        message: "Invalid partyId",
+      });
       return partyIdResult.response;
     }
     const partyId = partyIdResult.value;
@@ -173,7 +179,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Parse and validate request body
     const bodyResult = await parseJsonBody(request);
     if (!bodyResult.success) {
-      logError("Invalid request body in POST drinks", bodyResult.response);
+      logError("Invalid request body in POST drinks", undefined, {
+        status: bodyResult.response.status,
+        message: "Invalid request body",
+      });
       return bodyResult.response;
     }
 

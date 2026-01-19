@@ -26,7 +26,7 @@ INSERT INTO auth.users (
   'authenticated',
   'authenticated',
   'dev@example.com',
-  crypt('devpassword123', gen_salt('bf')),
+  NULL,
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP,

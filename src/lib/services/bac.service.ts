@@ -7,6 +7,7 @@
 
 import type { SupabaseClient } from "../../db/supabase.client";
 import type { CurrentBACResponseDTO, ProfileSnapshot, BACHistoryResponseDTO, BACCalculationDTO } from "../../types";
+import { ERROR_CODES } from "../constants";
 import { parseProfileSnapshot } from "../type-guards";
 
 // ============================================================================
@@ -185,12 +186,12 @@ export async function getCurrentBAC(
     .single();
 
   if (partyError || !party) {
-    throw new Error("PARTY_NOT_FOUND");
+    throw new Error(ERROR_CODES.PARTY_NOT_FOUND);
   }
 
   // Verify party status is 'ongoing'
   if (party.status !== "ongoing") {
-    throw new Error("PARTY_CLOSED");
+    throw new Error(ERROR_CODES.PARTY_ALREADY_CLOSED);
   }
 
   // Step 2: Fetch latest BAC calculation for this party
@@ -204,7 +205,7 @@ export async function getCurrentBAC(
     .single();
 
   if (bacError || !latestBAC) {
-    throw new Error("NO_DRINKS_IN_PARTY");
+    throw new Error(ERROR_CODES.NO_DRINKS_IN_PARTY);
   }
 
   // Step 3: Fetch first drink to calculate time_since_first_drink
@@ -218,7 +219,7 @@ export async function getCurrentBAC(
     .single();
 
   if (firstDrinkError || !firstDrink) {
-    throw new Error("NO_DRINKS_IN_PARTY");
+    throw new Error(ERROR_CODES.NO_DRINKS_IN_PARTY);
   }
 
   // Step 4: Fetch current user threshold
@@ -230,14 +231,14 @@ export async function getCurrentBAC(
     .single();
 
   if (thresholdError || !threshold) {
-    throw new Error("NO_THRESHOLD_FOUND");
+    throw new Error(ERROR_CODES.NO_THRESHOLD_FOUND);
   }
 
   // Step 5: Calculate current BAC with time decay
   const profileSnapshot = parseProfileSnapshot(latestBAC.user_profile_snapshot);
 
   if (!latestBAC.calculation_timestamp) {
-    throw new Error("MISSING_CALCULATION_TIMESTAMP");
+    throw new Error(ERROR_CODES.DATABASE_ERROR);
   }
 
   const bacDecay = calculateBACDecay(latestBAC.calculated_bac, latestBAC.calculation_timestamp, profileSnapshot);
@@ -299,12 +300,12 @@ export async function getBACHistory(
 
   // Handle party not found
   if (partyError || !party) {
-    throw new Error("PARTY_NOT_FOUND");
+    throw new Error(ERROR_CODES.PARTY_NOT_FOUND);
   }
 
   // Verify ownership
   if (party.user_id !== userId) {
-    throw new Error("FORBIDDEN");
+    throw new Error(ERROR_CODES.FORBIDDEN);
   }
 
   // Step 2: Fetch all BAC calculations for this party ordered chronologically
@@ -316,7 +317,7 @@ export async function getBACHistory(
 
   // Handle database errors
   if (bacError) {
-    throw new Error("DATABASE_ERROR");
+    throw new Error(ERROR_CODES.DATABASE_ERROR);
   }
 
   // Step 3: Transform database records to DTOs
@@ -326,7 +327,7 @@ export async function getBACHistory(
 
     // Ensure calculation_timestamp is not null (should never happen in practice)
     if (!calc.calculation_timestamp) {
-      throw new Error("DATABASE_ERROR");
+      throw new Error(ERROR_CODES.DATABASE_ERROR);
     }
 
     return {

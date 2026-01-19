@@ -63,10 +63,23 @@ export function logWarning(message: string, context?: LogContext): void {
 export function logError(message: string, error?: Error | unknown, context?: LogContext): void {
   if (error instanceof Error) {
     log("error", message, error);
-  } else if (error) {
-    log("error", message, { error, ...context });
+  } else if (error !== undefined) {
+    // Bezpiecznie serializuj error i context, nawet jeśli są undefined lub nie mają value
+    try {
+      log("error", message, { error: safeStringify(error), context: context ? safeStringify(context) : undefined });
+    } catch {
+      log("error", message, { error: String(error), context: String(context) });
+    }
   } else {
     log("error", message, context);
+  }
+}
+
+function safeStringify(obj: unknown): unknown {
+  try {
+    return JSON.parse(JSON.stringify(obj));
+  } catch {
+    return String(obj);
   }
 }
 

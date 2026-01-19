@@ -1,5 +1,3 @@
--- migration: init_enums
--- purpose: create custom enum types for ClearMindHelper application
 -- tables affected: none (type definitions)
 -- notes: these enums are used across multiple tables in the schema
 

@@ -31,7 +31,8 @@ import type {
 import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.service";
 import { logError, logInfo } from "../logger";
 import { verifyPartyOwnershipOrThrow } from "../api-helpers";
-import { logEvent } from "./event.service";
+import { EventService } from "./event.service";
+import { ERROR_CODES } from "../constants";
 
 /**
  * Checks if user has an ongoing party
@@ -132,7 +133,7 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
 
   if (!profile) {
     logInfo("User attempted to start party without profile", { userId });
-    throw new Error("PROFILE_NOT_FOUND");
+    throw new Error(ERROR_CODES.PROFILE_NOT_FOUND);
   }
 
   if (!isProfileComplete(profile)) {
@@ -149,7 +150,7 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
 
   if (hasOngoing) {
     logInfo("User attempted to start party while one is already ongoing", { userId });
-    throw new Error("PARTY_ALREADY_ONGOING");
+    throw new Error(ERROR_CODES.PARTY_ALREADY_ONGOING);
   }
 
   // Step 3: Create profile snapshot
@@ -191,7 +192,10 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
   logInfo("Party created successfully", { userId, partyId: newParty.id });
 
   // Step 5: Log party_started event (non-critical)
-  await logEvent(supabase, userId, "party_started", newParty.id);
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "party_started",
+    party_id: BigInt(newParty.id),
+  });
 
   // Transform to DTO
   const partyDTO: PartyDTO = {
@@ -615,7 +619,7 @@ export async function closeParty(
       partyId,
       error: fetchError?.message || "Party not found",
     });
-    throw new Error("PARTY_NOT_FOUND");
+    throw new Error(ERROR_CODES.PARTY_NOT_FOUND);
   }
 
   // Step 3b: Validate party status
@@ -625,7 +629,7 @@ export async function closeParty(
       partyId,
       status: party.status,
     });
-    throw new Error("PARTY_ALREADY_CLOSED");
+    throw new Error(ERROR_CODES.PARTY_ALREADY_CLOSED);
   }
 
   // Step 3c: Validate ended_at timestamp
@@ -641,7 +645,7 @@ export async function closeParty(
       startedAt: startedAt.toISOString(),
       endedAt: endedAt.toISOString(),
     });
-    throw new Error("INVALID_ENDED_AT");
+    throw new Error(ERROR_CODES.INVALID_ENDED_AT);
   }
 
   // Check if ended_at is not too far in the past (with 5 min tolerance)
@@ -653,7 +657,7 @@ export async function closeParty(
       endedAt: endedAt.toISOString(),
       minAllowed: minAllowedTime.toISOString(),
     });
-    throw new Error("INVALID_ENDED_AT");
+    throw new Error(ERROR_CODES.VALIDATION_FAILED);
   }
 
   // Check if ended_at is not in the future (with 5 min tolerance)
@@ -665,7 +669,7 @@ export async function closeParty(
       endedAt: endedAt.toISOString(),
       maxAllowed: maxAllowedTime.toISOString(),
     });
-    throw new Error("INVALID_ENDED_AT");
+    throw new Error(ERROR_CODES.INVALID_ENDED_AT);
   }
 
   // Step 3d: Update party
@@ -711,7 +715,10 @@ export async function closeParty(
   }
 
   // Step 3f: Log event (non-critical - don't throw on error)
-  await logEvent(supabase, userId, "party_closed", partyId);
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "party_closed",
+    party_id: BigInt(partyId),
+  });
 
   // Step 3g: Return formatted response
   const response: ClosePartyResponseDTO = {
@@ -770,7 +777,7 @@ export async function markBlackout(
     });
     throw {
       status: 400,
-      code: "PARTY_NOT_CLOSED",
+      code: ERROR_CODES.PARTY_ALREADY_ONGOING,
       message: "Cannot mark blackout for a party that is not closed",
     };
   }
@@ -792,7 +799,7 @@ export async function markBlackout(
     });
     throw {
       status: 500,
-      code: "INTERNAL_ERROR",
+      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: "Failed to process BAC calculations",
     };
   }
@@ -801,7 +808,7 @@ export async function markBlackout(
     logError("No BAC calculations found for party", { userId, partyId });
     throw {
       status: 400,
-      code: "NO_BAC_CALCULATIONS",
+      code: ERROR_CODES.NO_BAC_CALCULATIONS,
       message: "Cannot mark blackout for party without BAC calculations. Please add at least one drink.",
     };
   }
@@ -834,7 +841,7 @@ export async function markBlackout(
     });
     throw {
       status: 500,
-      code: "INTERNAL_ERROR",
+      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: "Failed to update party",
     };
   }
@@ -854,7 +861,7 @@ export async function markBlackout(
     });
     throw {
       status: 500,
-      code: "INTERNAL_ERROR",
+      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: "Failed to update user thresholds",
     };
   }
@@ -883,16 +890,22 @@ export async function markBlackout(
     });
     throw {
       status: 500,
-      code: "INTERNAL_ERROR",
+      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
       message: "Failed to create new threshold",
     };
   }
 
   // Step 7a: Log blackout_marked event (non-critical)
-  await logEvent(supabase, userId, "blackout_marked", partyId);
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "blackout_marked",
+    party_id: BigInt(partyId),
+  });
 
   // Step 7b: Log threshold_adjusted event (non-critical)
-  await logEvent(supabase, userId, "threshold_adjusted", partyId);
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "threshold_adjusted",
+    party_id: BigInt(partyId),
+  });
 
   // Step 8: Format and return response
   const response: MarkBlackoutResponseDTO = {

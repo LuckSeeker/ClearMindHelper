@@ -10,6 +10,7 @@
  * - Event logging
  */
 
+import { ERROR_CODES } from "../constants";
 import type { SupabaseClient } from "../../db/supabase.client";
 import { parseProfileSnapshot, profileSnapshotToJson } from "../type-guards";
 import type {
@@ -30,7 +31,7 @@ import type {
 } from "../../types";
 import { logError, logInfo } from "../logger";
 import { verifyPartyOwnershipOrThrow } from "../api-helpers";
-import { logEvent } from "./event.service";
+import { EventService } from "./event.service";
 
 // ============================================================================
 // Constants
@@ -80,7 +81,7 @@ export function validatePartyForDrink(party: { status: string }): {
     return {
       valid: false,
       error: {
-        code: "PARTY_CLOSED",
+        code: ERROR_CODES.PARTY_ALREADY_CLOSED,
         message: "Cannot add drinks to a closed party",
       },
       status: 400,
@@ -108,7 +109,7 @@ export function validateConsumedAtInPartyTimeframe(
     return {
       valid: false,
       error: {
-        code: "CONSUMED_AT_BEFORE_PARTY_START",
+        code: ERROR_CODES.CONSUMED_AT_BEFORE_PARTY_START,
         message: "consumed_at cannot be before party start time",
       },
     };
@@ -118,19 +119,20 @@ export function validateConsumedAtInPartyTimeframe(
     return {
       valid: false,
       error: {
-        code: "CONSUMED_AT_AFTER_PARTY_END",
+        code: ERROR_CODES.CONSUMED_AT_AFTER_PARTY_END,
         message: "consumed_at cannot be after party end time",
       },
     };
   }
 
   const now = new Date();
-  if (consumedAt > now) {
+  const toleranceMs = 5 * 60 * 1000; // 5 minut w ms
+  if (consumedAt.getTime() > now.getTime() + toleranceMs) {
     return {
       valid: false,
       error: {
-        code: "CONSUMED_AT_IN_FUTURE",
-        message: "consumed_at cannot be in the future",
+        code: ERROR_CODES.CONSUMED_AT_IN_FUTURE,
+        message: `consumed_at cannot be more than 5 minutes in the future`,
       },
     };
   }
@@ -147,7 +149,7 @@ export function validateConsumedAtInPartyTimeframe(
 export function checkUnrealisticVolume(volumeMl: number): DrinkValidationWarning | null {
   if (volumeMl > UNREALISTIC_VOLUME_THRESHOLD) {
     return {
-      code: "UNREALISTIC_VOLUME",
+      code: ERROR_CODES.UNREALISTIC_VOLUME,
       message: `Volume of ${volumeMl}ml is unusually large. Are you sure this is correct?`,
       field: "volume_ml",
       value: volumeMl,
@@ -173,7 +175,7 @@ export function checkFastConsumption(consumedAt: Date, lastDrink: Drink | null):
 
   if (timeDiffMinutes < FAST_CONSUMPTION_THRESHOLD_MINUTES) {
     return {
-      code: "FAST_CONSUMPTION",
+      code: ERROR_CODES.FAST_CONSUMPTION,
       message: `Only ${Math.round(timeDiffMinutes)} minutes since last drink. Consider slowing down.`,
       field: "consumed_at",
       value: timeDiffMinutes,
@@ -209,7 +211,7 @@ export function validateBACLimit(
     return {
       valid: false,
       error: {
-        code: "BAC_LIMIT_EXCEEDED",
+        code: ERROR_CODES.BAC_LIMIT_EXCEEDED,
         message: `This drink would result in BAC of ${projectedBAC.toFixed(2)}%, which exceeds the maximum allowed value of ${MAX_BAC_LIMIT}%. Please reduce volume or ABV.`,
       },
     };
@@ -492,7 +494,18 @@ export async function addDrinkToParty(
   logInfo("Adding drink to party", { userId, partyId, command });
 
   // 1. Verify party exists and belongs to user
-  const party = (await verifyPartyOwnershipOrThrow(supabase, partyId, userId)) as Party;
+  let party: Party;
+  try {
+    party = (await verifyPartyOwnershipOrThrow(supabase, partyId, userId)) as Party;
+  } catch (err) {
+    if (err instanceof Error && err.message === ERROR_CODES.PARTY_NOT_FOUND) {
+      const error = new Error("Party not found") as Error & { code: string; status: number };
+      error.code = ERROR_CODES.PARTY_NOT_FOUND;
+      error.status = 404;
+      throw error;
+    }
+    throw err;
+  }
 
   // 2. Validate party status (must be ongoing)
   const validation = validatePartyForDrink(party);
@@ -548,7 +561,7 @@ export async function addDrinkToParty(
     throw error;
   }
 
-  // 6. Check for validation warnings
+  // 6. Check for validation warnings BEFORE creating drink
   const warnings: DrinkValidationWarning[] = [];
 
   // Check unrealistic volume
@@ -564,17 +577,36 @@ export async function addDrinkToParty(
     warnings.push(fastConsumptionWarning);
   }
 
-  // If warnings exist and not confirmed, return 422
+  // Loguj warningi tylko jeśli nie ma confirm_warnings (czyli tylko przy requestach bez potwierdzenia)
   if (warnings.length > 0 && !command.confirm_warnings) {
-    const error = new Error("Validation warnings require confirmation") as Error & {
-      code: string;
-      status: number;
-      warnings: DrinkValidationWarning[];
-    };
-    error.code = "VALIDATION_WARNINGS";
-    error.status = 422;
-    error.warnings = warnings;
-    throw error;
+    if (volumeWarning) {
+      await new EventService(supabase).logEvent(userId, {
+        event_type: "unrealistic_volume_warning",
+        party_id: BigInt(partyId),
+      });
+    }
+    if (fastConsumptionWarning) {
+      await new EventService(supabase).logEvent(userId, {
+        event_type: "fast_consumption_warning",
+        party_id: BigInt(partyId),
+      });
+    }
+    return {
+      drink: undefined,
+      bac: undefined,
+      warnings,
+      alerts: [],
+    } as unknown as AddDrinkResponseDTO;
+  }
+
+  // Jeśli warningi istnieją i nie są potwierdzone, nie dodawaj drinka
+  if (warnings.length > 0 && !command.confirm_warnings) {
+    return {
+      drink: undefined,
+      bac: undefined,
+      warnings,
+      alerts: [],
+    } as unknown as AddDrinkResponseDTO;
   }
 
   // 7. Calculate order_sequence
@@ -658,12 +690,11 @@ export async function addDrinkToParty(
 
   await supabase.from("parties").update({ bac_estimate_max: newMaxBAC }).eq("id", partyId);
 
-  // 11. Log events
-  await logEvent(supabase, userId, "drink_added", partyId);
-
-  if (fastConsumptionWarning) {
-    await logEvent(supabase, userId, "fast_consumption_warning", partyId);
-  }
+  // 11. Log events (after drink is created)
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "drink_added",
+    party_id: BigInt(partyId),
+  });
 
   // 12. Get all active alerts
   const activeAlerts = await getActiveAlerts(supabase, partyId);
@@ -757,7 +788,7 @@ export async function updateLastDrink(
       code: string;
       status: number;
     };
-    error.code = "DRINK_NOT_FOUND";
+    error.code = ERROR_CODES.DRINK_NOT_FOUND;
     error.status = 404;
     throw error;
   }
@@ -792,7 +823,7 @@ export async function updateLastDrink(
       code: string;
       status: number;
     };
-    error.code = "NOT_LAST_DRINK";
+    error.code = ERROR_CODES.NOT_LAST_DRINK;
     error.status = 409;
     throw error;
   }
@@ -962,7 +993,10 @@ export async function updateLastDrink(
   const activeAlerts = await getActiveAlerts(supabase, partyId);
 
   // 12. Log event
-  await logEvent(supabase, userId, "drink_edited", partyId);
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "drink_edited",
+    party_id: BigInt(partyId),
+  });
 
   // 13. Build response
   const drinkDTO: DrinkDTO = {

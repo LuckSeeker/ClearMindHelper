@@ -1,43 +1,50 @@
-/**
- * Event Service
- *
- * Centralized service for logging events to the database.
- * Events track important user actions for analytics and audit trail.
- */
-
 import type { SupabaseClient } from "../../db/supabase.client";
-import type { EventType } from "../../types";
-import { logError, logInfo } from "../logger";
+import type { LogEventCommandInput } from "../validation/event.validation";
+import type { EventDTO } from "../../types";
+import { ERROR_CODES } from "../constants";
 
-/**
- * Logs an event to the events table
- *
- * This is a non-critical operation - failures are logged but don't throw errors
- * to avoid disrupting the main application flow.
- *
- * @param supabase - Supabase client instance
- * @param userId - The authenticated user's UUID
- * @param eventType - Type of event to log
- * @param partyId - Optional party ID if event is related to a party
- * @returns Promise that resolves when event is logged (or fails silently)
- */
-export async function logEvent(
-  supabase: SupabaseClient,
-  userId: string,
-  eventType: EventType,
-  partyId?: number
-): Promise<void> {
-  const { error } = await supabase.from("events").insert({
-    user_id: userId,
-    event_type: eventType,
-    party_id: partyId ?? null,
-  });
+export class EventService {
+  constructor(private supabase: SupabaseClient) {}
 
-  if (error) {
-    logError("Failed to log event", { userId, eventType, partyId, error: error.message });
-    // Don't throw - event logging is non-critical
-    return;
+  /**
+   * Log telemetry event for user
+   * @param userId - authenticated user id
+   * @param command - validated event command
+   * @returns EventDTO or throws APIError
+   */
+  async logEvent(userId: string, command: LogEventCommandInput): Promise<EventDTO> {
+    // Validate event_type (already done by Zod)
+    // If party_id provided, check if party exists and belongs to user
+    let partyId: number | null = null;
+    if (command.party_id !== undefined && command.party_id !== null) {
+      // party_id może być bigint, string lub number, ale w bazie to number
+      partyId = typeof command.party_id === "bigint" ? Number(command.party_id) : Number(command.party_id);
+      const { data: party, error } = await this.supabase
+        .from("parties")
+        .select("id, user_id")
+        .eq("id", partyId)
+        .maybeSingle();
+      if (error) {
+        if (error.code === "PGRST116") throw new Error(ERROR_CODES.PARTY_NOT_FOUND);
+        throw new Error(ERROR_CODES.DATABASE_ERROR);
+      }
+      if (!party || party.user_id !== userId) {
+        throw new Error(ERROR_CODES.PARTY_NOT_FOUND);
+      }
+    }
+    // Insert event
+    const { data, error } = await this.supabase
+      .from("events")
+      .insert({
+        user_id: userId,
+        party_id: partyId,
+        event_type: command.event_type,
+      })
+      .select("id, event_type, created_at")
+      .single();
+    if (error || !data) {
+      throw new Error(ERROR_CODES.FAILED_TO_LOG_EVENT);
+    }
+    return data as EventDTO;
   }
-
-  logInfo("Event logged", { userId, eventType, partyId });
 }

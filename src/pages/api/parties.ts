@@ -107,6 +107,7 @@ export const GET: APIRoute = async ({ url, locals }) => {
 import type { APIRoute } from "astro";
 
 import { DEFAULT_USER_ID } from "../../db/supabase.client";
+import { ERROR_CODES } from "../../lib/constants";
 import { logError, logInfo } from "../../lib/logger";
 import { startParty } from "../../lib/services/party.service";
 import { StartPartySchema } from "../../lib/validation/party.validation";
@@ -153,18 +154,21 @@ export const POST: APIRoute = async ({ request, locals }) => {
       if (serviceError instanceof Error) {
         const errorMessage = serviceError.message;
 
-        if (errorMessage === "PROFILE_NOT_FOUND") {
+        if (errorMessage === ERROR_CODES.PROFILE_NOT_FOUND) {
           return createErrorResponse(
-            { code: "PROFILE_NOT_FOUND", message: "User profile not found. Please create your profile first." },
+            {
+              code: ERROR_CODES.PROFILE_NOT_FOUND,
+              message: "User profile not found. Please create your profile first.",
+            },
             400
           );
         }
 
-        if (errorMessage.startsWith("PROFILE_INCOMPLETE:")) {
-          const missingFields = errorMessage.replace("PROFILE_INCOMPLETE:", "").split(",");
+        if (errorMessage.startsWith(`${ERROR_CODES.PROFILE_INCOMPLETE}:`)) {
+          const missingFields = errorMessage.replace(`${ERROR_CODES.PROFILE_INCOMPLETE}:`, "").split(",");
           return createErrorResponse(
             {
-              code: "PROFILE_INCOMPLETE",
+              code: ERROR_CODES.PROFILE_INCOMPLETE,
               message: "User profile is incomplete. Please complete your profile before starting a party.",
             },
             400,
@@ -172,7 +176,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           );
         }
 
-        if (errorMessage === "PARTY_ALREADY_ONGOING") {
+        if (errorMessage === ERROR_CODES.PARTY_ALREADY_ONGOING) {
           return CommonErrors.conflict("You already have an ongoing party. Please close it before starting a new one.");
         }
 

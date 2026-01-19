@@ -1,7 +1,8 @@
+import { ERROR_CODES } from "../constants";
 import type { ThresholdHistoryResponseDTO, UserThresholdDTO } from "../../types";
 import type { SupabaseClient } from "../../db/supabase.client";
 import type { ThresholdReason } from "../../types";
-import { logEvent } from "./event.service";
+import { EventService } from "./event.service";
 import { logError } from "../../lib/logger";
 import type { APIError } from "../../types";
 
@@ -97,7 +98,9 @@ export async function createDefaultThreshold(userId: string, supabase: SupabaseC
 
   if (error) throw error;
 
-  await logEvent(supabase, userId, "threshold_adjusted");
+  await new EventService(supabase).logEvent(userId, {
+    event_type: "threshold_adjusted",
+  });
 
   if (!data) throw new Error("Failed to create default threshold");
   if (!data.created_at) {
@@ -131,7 +134,7 @@ export async function updateUserThreshold(
     logError(`updateUserThreshold: DB error on get current for user_id=${userId}`, getError);
     return {
       error: {
-        code: "DATABASE_ERROR",
+        code: ERROR_CODES.DATABASE_ERROR,
         message: "Database error",
         details: { db: getError },
       },
@@ -142,7 +145,7 @@ export async function updateUserThreshold(
   if (!current) {
     return {
       error: {
-        code: "NOT_FOUND",
+        code: ERROR_CODES.PARTY_NOT_FOUND,
         message: "User profile or current threshold not found",
       },
     };
@@ -157,7 +160,7 @@ export async function updateUserThreshold(
     logError(`updateUserThreshold: DB error on update is_current=false for id=${current.id}`, updateError);
     return {
       error: {
-        code: "DATABASE_ERROR",
+        code: ERROR_CODES.DATABASE_ERROR,
         message: "Failed to deactivate previous threshold",
         details: { db: updateError },
       },
@@ -181,7 +184,7 @@ export async function updateUserThreshold(
     logError(`updateUserThreshold: DB error on insert new threshold for user_id=${userId}`, insertError);
     return {
       error: {
-        code: "DATABASE_ERROR",
+        code: ERROR_CODES.DATABASE_ERROR,
         message: "Failed to create new threshold",
         details: { db: insertError },
       },
@@ -191,7 +194,7 @@ export async function updateUserThreshold(
     logError(`updateUserThreshold: Missing created_at for userthresholds.id=${newThreshold.id}`);
     return {
       error: {
-        code: "DATABASE_ERROR",
+        code: ERROR_CODES.DATABASE_ERROR,
         message: "Database integrity error: missing created_at",
       },
     };
