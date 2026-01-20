@@ -1,0 +1,60 @@
+<conversation_summary> 
+<decisions> 
+1. Ekran logowania będzie osobny, a dolna nawigacja dostępna tylko po zalogowaniu. 2. Historia imprez prezentowana jako tabela z listą napojów, wartościami BAC po każdym napoju oraz osobno snapshotem danych użytkownika i informacją o blackout, bac przed i po imprezie. 
+3. Zmiana thresholdu wymaga potwierdzenia przez modal z informacją o konsekwencjach. 
+4. Brak uzupełnionego profilu blokuje tylko możliwość rozpoczęcia imprezy, z jasnym komunikatem i linkiem do profilu. 
+5. Powiadomienia krytyczne (np. alert BAC) będą wyświetlane globalnie, pozostałe kontekstowo. 
+6. Odpytywanie API o BAC i alerty co 5 minut (na sztywno). 
+7. Dodanie przycisku odświeżania w sekcjach z buforowanymi danymi. 
+8. Automatyczne przekierowanie na logowanie po utracie sesji, z krótkim komunikatem. 
+9. Brak dodatkowych informacji edukacyjnych w modalu ostrzeżeń o nierealistycznych wartościach (na razie). 1
+0. Brak trybu dark mode w MVP. 
+</decisions> 
+<matched_recommendations> 
+1. Główna nawigacja powinna obejmować: Aktywna impreza, Historia, Profil; logowanie osobno. 
+2. Szczegóły imprezy w historii dostępne w formie tabeli z napojami i snapshotem profilu. 
+3. Zmiana thresholdu przez modal z potwierdzeniem. 
+4. Blokada rozpoczęcia imprezy przy niekompletnym profilu, z jasnym komunikatem. 
+5. Powiadomienia toast/snackbar – krytyczne globalnie, pozostałe kontekstowo. 
+6. Mobile-first, dolna nawigacja na mobile, testowanie na małych ekranach. 
+7. Globalny kontekst autoryzacji, dedykowane hooki do pobierania/mutacji danych z API. 
+8. Buforowanie danych niekrytycznych, ręczne odświeżanie; dane czasu rzeczywistego odpytywane cyklicznie. 
+9. Automatyczne przekierowanie na logowanie po utracie sesji. 
+10. Komponenty Shadcn/ui z pełnym wsparciem a11y. 
+</matched_recommendations> 
+<ui_architecture_planning_summary> 
+a. Główne wymagania dotyczące architektury UI: - Osobny ekran logowania, dostępny przed autoryzacją. - Po zalogowaniu dolna nawigacja z sekcjami: Aktywna impreza, Historia, Profil. - Proste, czytelne formatki (preferowane modale i panele boczne). - Mobile-first, z naciskiem na wygodę obsługi na telefonach.
+
+b. Kluczowe widoki, ekrany i przepływy użytkownika:
+
+Logowanie/rejestracja (osobny widok).
+Aktywna impreza: dodawanie napojów, zamykanie imprezy, oznaczanie blackout, podgląd BAC i alertów.
+Historia imprez: tabela z listą napojów, snapshot profilu, informacja o blackout, bac przed i po imprezie.
+Profil: edycja danych użytkownika, zmiana thresholdu (z potwierdzeniem).
+Globalne powiadomienia toast/snackbar, krytyczne alerty widoczne na wszystkich widokach.
+Przycisk odświeżania w sekcjach z buforowanymi danymi.
+
+c. Strategia integracji z API i zarządzania stanem:
+
+Globalny kontekst autoryzacji, automatyczne przekierowanie na logowanie po utracie sesji.
+Dedykowane hooki do pobierania i mutacji danych (np. SWR/React Query).
+Buforowanie danych niekrytycznych (historia, profil), ręczne odświeżanie.
+Odpytywanie API o BAC i alerty co 5 minut.
+Obsługa błędów API z czytelnymi komunikatami i akcjami naprawczymi.
+
+d. Responsywność, dostępność i bezpieczeństwo:
+
+Mobile-first, dolna nawigacja na mobile.
+Komponenty Shadcn/ui z pełnym wsparciem a11y, testy na screen readerach i klawiaturze.
+Wymagana autoryzacja do wszystkich widoków poza logowaniem/rejestracją.
+Brak dark mode w MVP.
+Brak dodatkowych informacji edukacyjnych w modalach ostrzeżeń (na razie).
+
+e. Nierozwiązane kwestie lub obszary wymagające dalszego wyjaśnienia:
+
+Brak.
+</ui_architecture_planning_summary> 
+<unresolved_issues> 
+Brak istotnych nierozwiązanych kwestii na obecnym etapie. Wszystkie kluczowe decyzje zostały podjęte. 
+</unresolved_issues> 
+</conversation_summary>
