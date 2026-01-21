@@ -1,5 +1,3 @@
-import { FailedToFetchRemoteImageDimensions } from "node_modules/astro/dist/core/errors/errors-data";
-
 // Error code constants for service and API error handling
 export const ERROR_CODES = {
   PARTY_NOT_FOUND: "PARTY_NOT_FOUND",

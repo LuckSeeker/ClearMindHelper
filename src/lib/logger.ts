@@ -24,7 +24,7 @@ function log(level: LogLevel, message: string, context?: LogContext | Error | un
 
   // In development, log to console
   if (isDevelopment) {
-    const logFn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+    const logFn = level === "error" ? console.error : level === "warn" ? console.warn : console.info;
 
     if (context instanceof Error) {
       logFn(`[${timestamp}] [${level.toUpperCase()}] ${message}`, context);

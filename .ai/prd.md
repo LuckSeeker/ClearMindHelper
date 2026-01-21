@@ -180,6 +180,13 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
     - Jeśli brak wymaganych pól profilu, system blokuje rozpoczęcie imprezy i prosi o uzupełnienie.
     - UI jasno informuje, które pola brakują.
 
+- US-019
+  - Tytuł: Ręczna zmiana progu użytkownika
+  - Opis: Użytkownik powinien manualnie go móć zmienić próg
+  - Kryteria akceptacji:
+    - Zmiana progu wpływa na logikę alertów natychmiast.
+    - Umożliwienie ręcznej zmiany progu przez użytkownika.
+
 ## 6. Metryki sukcesu
 
 - Produktowe

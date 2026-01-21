@@ -140,7 +140,7 @@ create table userthresholds (
   user_id uuid not null references auth.users(id) on delete cascade,
   
   -- threshold value (realistic range for algorithm stability)
-  threshold_bac decimal(4, 2) not null check (threshold_bac between 0.08 and 0.50),
+  threshold_bac decimal(4, 2) not null check (threshold_bac between 0.08 and 1.60),
   
   -- current threshold flag (only one per user should be true)
   is_current boolean default true,

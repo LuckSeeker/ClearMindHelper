@@ -44,13 +44,16 @@ export async function getProfile(userId: string, supabase: SupabaseClient): Prom
   // Profile is complete when all required fields are filled
   const isComplete = profile.height_cm !== null && profile.weight_kg !== null && profile.gender !== null;
 
+  // Ensure weight_kg is always a number (Supabase may return string for numeric columns)
+  const weight_kg = typeof profile.weight_kg === "string" ? parseFloat(profile.weight_kg) : profile.weight_kg;
+
   // Format timestamps to ISO 8601 strings
   // created_at and updated_at have DEFAULT in schema so should always exist
   const profileDTO: UserProfileDTO = {
     id: profile.id,
     user_id: profile.user_id,
     height_cm: profile.height_cm,
-    weight_kg: profile.weight_kg,
+    weight_kg,
     gender: profile.gender,
     created_at: profile.created_at ? new Date(profile.created_at).toISOString() : new Date().toISOString(),
     updated_at: profile.updated_at ? new Date(profile.updated_at).toISOString() : new Date().toISOString(),
