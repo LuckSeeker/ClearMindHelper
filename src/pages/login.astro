@@ -1,0 +1,8 @@
+---
+import LoginRegisterLayout from "@/components/LoginRegisterLayout";
+import AuthForm from "@/components/AuthForm.client";
+---
+
+<LoginRegisterLayout>
+  <AuthForm mode="login" client:only="react" />
+</LoginRegisterLayout>
