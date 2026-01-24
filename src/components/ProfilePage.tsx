@@ -26,6 +26,12 @@ const ProfilePage: React.FC = () => {
     refetch: refetchHistory,
   } = useThresholdHistory();
 
+  // Odśwież próg i historię przy każdym wejściu na /profile
+  React.useEffect(() => {
+    refetchThreshold();
+    refetchHistory();
+  }, [refetchThreshold, refetchHistory]);
+
   // Modal state for threshold change
   const [isModalOpen, setModalOpen] = React.useState(false);
   const [modalError, setModalError] = React.useState<string | null>(null);

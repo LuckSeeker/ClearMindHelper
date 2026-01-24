@@ -5,7 +5,6 @@ export function useThreshold() {
   const resource = useApiResource<CurrentThresholdResponseDTO>("/api/thresholds/current");
 
   const updateThreshold = async (command: UpdateThresholdCommand) => {
-    await resource.refetch();
     await fetch("/api/thresholds/current", {
       method: "PUT",
       headers: {

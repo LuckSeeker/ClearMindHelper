@@ -46,11 +46,14 @@ const UNREALISTIC_VOLUME_THRESHOLD = 2000;
 /** Fast consumption time threshold in minutes */
 const FAST_CONSUMPTION_THRESHOLD_MINUTES = 15;
 
+/** Tolerance for consumed_at before/after party (5 minutes in ms) */
+export const CONSUMED_AT_TOLERANCE_MS = 5 * 60 * 1000;
+
 /** BAC approaching threshold multiplier (90% of threshold) */
 const APPROACHING_THRESHOLD_MULTIPLIER = 0.9;
 
-/** Maximum BAC allowed in database (decimal(4,2) limit) */
-const MAX_BAC_LIMIT = 0.99;
+/** Maksymalny dozwolony BAC w promilach (‰) (decimal(4,2) limit) */
+const MAX_BAC_LIMIT = 5.0;
 
 /** Default metabolization rate in grams per hour */
 const DEFAULT_METABOLIZATION_RATE = 7.5;
@@ -104,13 +107,15 @@ export function validateConsumedAtInPartyTimeframe(
 ): { valid: boolean; error?: { code: string; message: string } } {
   const startedAt = new Date(party.started_at);
   const endedAt = party.ended_at ? new Date(party.ended_at) : null;
+  const toleranceMs = CONSUMED_AT_TOLERANCE_MS;
 
-  if (consumedAt < startedAt) {
+  // Pozwól na tolerancję 5 minut przed rozpoczęciem imprezy
+  if (consumedAt.getTime() < startedAt.getTime() - toleranceMs) {
     return {
       valid: false,
       error: {
         code: ERROR_CODES.CONSUMED_AT_BEFORE_PARTY_START,
-        message: "consumed_at cannot be before party start time",
+        message: `consumed_at cannot be more than 5 minutes before party start time`,
       },
     };
   }
@@ -126,7 +131,6 @@ export function validateConsumedAtInPartyTimeframe(
   }
 
   const now = new Date();
-  const toleranceMs = 5 * 60 * 1000; // 5 minut w ms
   if (consumedAt.getTime() > now.getTime() + toleranceMs) {
     return {
       valid: false,
@@ -212,7 +216,7 @@ export function validateBACLimit(
       valid: false,
       error: {
         code: ERROR_CODES.BAC_LIMIT_EXCEEDED,
-        message: `This drink would result in BAC of ${projectedBAC.toFixed(2)}%, which exceeds the maximum allowed value of ${MAX_BAC_LIMIT}%. Please reduce volume or ABV.`,
+        message: `This drink would result in BAC of ${projectedBAC.toFixed(2)}‰, which exceeds the maximum allowed value of ${MAX_BAC_LIMIT}‰. Please reduce volume or ABV.`,
       },
     };
   }
@@ -253,16 +257,17 @@ export function calculateBAC(
   const widmarkR = profileSnapshot.gender === "M" ? WIDMARK_R_MALE : WIDMARK_R_FEMALE;
 
   // Calculate initial BAC
-  const initialBAC = (totalAlcoholGrams / (bodyWeightGrams * widmarkR)) * 100;
+  const initialBAC = totalAlcoholGrams / (bodyWeightGrams * widmarkR);
 
   // Calculate metabolized alcohol
   const metabolizedAlcohol = timeElapsedHours * metabolizationRate;
 
   // Adjust BAC for metabolism
-  const metabolizedBAC = (metabolizedAlcohol / (bodyWeightGrams * widmarkR)) * 100;
+  const metabolizedBAC = metabolizedAlcohol / (bodyWeightGrams * widmarkR);
   const adjustedBAC = Math.max(0, initialBAC - metabolizedBAC);
 
-  return adjustedBAC;
+  // Zwracaj BAC w promilach (‰)
+  return adjustedBAC * 1000;
 }
 
 /**
@@ -584,12 +589,14 @@ export async function addDrinkToParty(
         event_type: "unrealistic_volume_warning",
         party_id: BigInt(partyId),
       });
+      logInfo("Event logged: unrealistic_volume_warning", { userId, partyId, volume: command.volume_ml });
     }
     if (fastConsumptionWarning) {
       await new EventService(supabase).logEvent(userId, {
         event_type: "fast_consumption_warning",
         party_id: BigInt(partyId),
       });
+      logInfo("Event logged: fast_consumption_warning", { userId, partyId, consumedAt: command.consumed_at });
     }
     return {
       drink: undefined,
@@ -718,7 +725,7 @@ export async function addDrinkToParty(
   return {
     drink: drinkDTO,
     bac_calculation: bacCalculationDTO,
-    warnings,
+    warnings: command.confirm_warnings ? [] : warnings,
     active_alerts: activeAlerts,
   };
 }
@@ -874,23 +881,27 @@ export async function updateLastDrink(
   // 7. Update drink - preserve original_values on first edit
   const currentEditCount = drink.edit_count ?? 0;
   const isFirstEdit = currentEditCount === 0;
+
   const updatePayload: {
     volume_ml: number;
     abv_percent: number;
     edited_at: string;
     edit_count: number;
-    original_values?: { volume_ml: number; abv_percent: number };
+    consumed_at?: string;
+    original_values?: { volume_ml: number; abv_percent: number; consumed_at?: string };
   } = {
     volume_ml: command.volume_ml,
     abv_percent: command.abv_percent,
     edited_at: new Date().toISOString(),
     edit_count: currentEditCount + 1,
+    ...(command.consumed_at ? { consumed_at: new Date(command.consumed_at).toISOString() } : {}),
   };
 
   if (isFirstEdit) {
     updatePayload.original_values = {
       volume_ml: drink.volume_ml,
       abv_percent: drink.abv_percent,
+      ...(drink.consumed_at ? { consumed_at: drink.consumed_at } : {}),
     };
   }
 

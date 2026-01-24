@@ -82,7 +82,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
   // Step 1: Authentication check
   const userIdResult = getAuthenticatedUserId();
   if (!userIdResult.success) {
-    logError("Authentication failed in GET drinks", userIdResult.response);
+    logError("Authentication failed in GET drinks", `status: ${userIdResult.response.status}`);
     return userIdResult.response;
   }
   const userId = userIdResult.value;
@@ -91,7 +91,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     // Step 2: Validate partyId from path params
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
     if (!partyIdResult.success) {
-      logError("Invalid partyId in GET drinks", partyIdResult.response);
+      logError("Invalid partyId in GET drinks", `status: ${partyIdResult.response.status}`);
       return partyIdResult.response;
     }
     const partyId = partyIdResult.value;
@@ -102,7 +102,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     });
 
     if (!queryParamsResult.success) {
-      logError("Invalid query parameters in GET drinks", queryParamsResult.error);
+      logError("Invalid query parameters in GET drinks", String(queryParamsResult.error));
       return createValidationErrorResponse(queryParamsResult.error, "Invalid query parameters");
     }
 
@@ -111,7 +111,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     // Step 4: Verify party exists and belongs to user
     const partyResult = await verifyPartyOwnership(supabase, partyId, userId, "GET drinks");
     if (!partyResult.success) {
-      logError("Party ownership verification failed in GET drinks", partyResult.response);
+      logError("Party ownership verification failed in GET drinks", `status: ${partyResult.response.status}`);
       return partyResult.response;
     }
 
@@ -129,13 +129,20 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
     return createSuccessResponse(drinksResponse);
   } catch (error) {
     // Unexpected errors
-    logError("Unexpected error in GET drinks", {
-      userId,
-      partyId: params.id,
-      error: error instanceof Error ? error.message : "Unknown error",
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
+    logError(
+      "Unexpected error in GET drinks",
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String(error && (error as { message?: unknown }).message)
+          : String(error),
+      {
+        userId,
+        partyId: params.id,
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+      }
+    );
     return CommonErrors.internalError();
   }
 };
@@ -149,7 +156,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Extract Supabase client from middleware
     const supabaseResult = validateSupabaseClient(locals.supabase);
     if (!supabaseResult.success) {
-      logError("Supabase client validation failed in POST drinks", supabaseResult.response);
+      logError("Supabase client validation failed in POST drinks", `status: ${supabaseResult.response.status}`);
       return supabaseResult.response;
     }
     const supabase = supabaseResult.value;
@@ -157,10 +164,10 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Authentication check
     const userIdResult = getAuthenticatedUserId();
     if (!userIdResult.success) {
-      logError("Authentication failed in POST drinks", undefined, {
-        status: userIdResult.response.status,
-        message: "Authentication failed",
-      });
+      logError(
+        "Authentication failed in POST drinks",
+        `status: ${userIdResult.response.status}, message: Authentication failed`
+      );
       return userIdResult.response;
     }
     const userId = userIdResult.value;
@@ -168,10 +175,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");
     if (!partyIdResult.success) {
-      logError("Invalid partyId in POST drinks", undefined, {
-        status: partyIdResult.response.status,
-        message: "Invalid partyId",
-      });
+      logError("Invalid partyId in POST drinks", `status: ${partyIdResult.response.status}, message: Invalid partyId`);
       return partyIdResult.response;
     }
     const partyId = partyIdResult.value;
@@ -179,17 +183,17 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     // Parse and validate request body
     const bodyResult = await parseJsonBody(request);
     if (!bodyResult.success) {
-      logError("Invalid request body in POST drinks", undefined, {
-        status: bodyResult.response.status,
-        message: "Invalid request body",
-      });
+      logError(
+        "Invalid request body in POST drinks",
+        `status: ${bodyResult.response.status}, message: Invalid request body`
+      );
       return bodyResult.response;
     }
 
     // Validate request body with Zod schema
     const validation = AddDrinkSchema.safeParse(bodyResult.value);
     if (!validation.success) {
-      logError("Request body validation failed in POST drinks", validation.error);
+      logError("Request body validation failed in POST drinks", String(validation.error));
       return createValidationErrorResponse(validation.error);
     }
 
@@ -222,32 +226,39 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
 
       // Handle common business logic errors
       if (err.code === "PARTY_NOT_FOUND") {
-        logError("Party not found in POST drinks", { error: err.message });
+        logError("Party not found in POST drinks", err, { error: err.message });
         return CommonErrors.partyNotFound();
       }
       if (err.code === "FORBIDDEN") {
-        logError("Forbidden in POST drinks", { error: err.message });
+        logError("Forbidden in POST drinks", err, { error: err.message });
         return CommonErrors.forbidden();
       }
       if (err.code === "PARTY_CLOSED") {
-        logError("Party closed in POST drinks", { error: err.message });
+        logError("Party closed in POST drinks", err, { error: err.message });
         return CommonErrors.partyClosed("add drinks to");
       }
 
       // Handle other known errors with code and status
       const errorResponse = createErrorResponseFromThrown(err);
       if (errorResponse) {
-        logError("Known error in POST drinks", { error: err.message });
+        logError("Known error in POST drinks", err, { error: err.message });
         return errorResponse;
       }
     }
 
     // Handle unexpected errors (500)
-    logError("Unexpected error in POST /api/parties/:id/drinks", {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-    });
-
+    logError(
+      "Unexpected error in POST /api/parties/:id/drinks",
+      error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String(error && (error as { message?: unknown }).message)
+          : String(error),
+      {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      }
+    );
     return CommonErrors.internalError();
   }
 };

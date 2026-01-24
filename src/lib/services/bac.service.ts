@@ -10,24 +10,7 @@ import type { CurrentBACResponseDTO, ProfileSnapshot, BACHistoryResponseDTO, BAC
 import { ERROR_CODES } from "../constants";
 import { parseProfileSnapshot } from "../type-guards";
 
-// ============================================================================
-// Constants for Widmark Algorithm
-// ============================================================================
-
-/**
- * Widmark formula constants for BAC calculation
- * Based on scientific research on alcohol metabolism
- */
-export const WIDMARK_CONSTANTS = {
-  /** Water distribution coefficient for males */
-  MALE_R: 0.68,
-  /** Water distribution coefficient for females */
-  FEMALE_R: 0.55,
-  /** Average alcohol metabolism rate (grams per kg body weight per hour) */
-  METABOLISM_RATE_PER_KG_PER_HOUR: 0.15,
-  /** Margin below threshold to trigger "approaching" status (in ‰) */
-  APPROACHING_THRESHOLD_MARGIN: 0.1,
-} as const;
+import { WIDMARK_CONSTANTS } from "../constants";
 
 // ============================================================================
 // Internal Types (not exported, only for service layer)
@@ -127,7 +110,7 @@ function determineThresholdStatus(currentBAC: number, threshold: number): Thresh
     return "exceeded";
   }
 
-  const approachingThreshold = threshold - WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_MARGIN;
+  const approachingThreshold = WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * threshold;
   if (currentBAC >= approachingThreshold) {
     return "approaching";
   }

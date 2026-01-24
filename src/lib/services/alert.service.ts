@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "../../db/supabase.client";
 import type { AlertDTO } from "../../types";
-import { getCurrentBAC, WIDMARK_CONSTANTS } from "./bac.service";
+import { getCurrentBAC } from "./bac.service";
+import { WIDMARK_CONSTANTS } from "../constants";
 import { logInfo } from "../logger";
 
 /**
@@ -129,7 +130,7 @@ export async function updateAlertsAfterThresholdChange(supabase: SupabaseClient,
       triggered_at: new Date().toISOString(),
       last_alert_sent_at: new Date().toISOString(),
     });
-  } else if (bac >= threshold - WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_MARGIN) {
+  } else if (bac >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * threshold) {
     // Jeśli BAC blisko progu, utwórz alert approaching_threshold
     await supabase.from("alerts").insert({
       party_id: party.id,

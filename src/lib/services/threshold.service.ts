@@ -1,4 +1,4 @@
-import { ERROR_CODES } from "../constants";
+import { ERROR_CODES, DEFAULT_THRESHOLD_BAC } from "../constants";
 import type { ThresholdHistoryResponseDTO, UserThresholdDTO } from "../../types";
 import type { SupabaseClient } from "../../db/supabase.client";
 import type { ThresholdReason } from "../../types";
@@ -85,7 +85,6 @@ export async function getCurrentThreshold(userId: string, supabase: SupabaseClie
  * Loguje event threshold_adjusted (nie przerywa flow przy błędzie logowania).
  */
 export async function createDefaultThreshold(userId: string, supabase: SupabaseClient): Promise<UserThresholdDTO> {
-  const DEFAULT_THRESHOLD_BAC = 1.0;
   const insertData = {
     user_id: userId,
     threshold_bac: DEFAULT_THRESHOLD_BAC,

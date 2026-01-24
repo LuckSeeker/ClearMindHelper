@@ -30,6 +30,10 @@ export default defineConfig({
     // Wymuś kodowanie UTF-8 dla plików źródłowych
     resolve: {
       extensions: [".js", ".ts", ".jsx", ".tsx", ".json", ".astro", ".css"],
+      alias: {
+        // eslint-disable-next-line no-undef
+        "@": new URL("./src", import.meta.url).pathname,
+      },
     },
     // Dla bezpieczeństwa ustaw env
     define: {

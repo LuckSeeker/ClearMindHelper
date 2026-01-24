@@ -107,6 +107,15 @@ export const UpdateDrinkSchema = z.object({
     .max(100, {
       message: "abv_percent cannot exceed 100",
     }),
+
+  consumed_at: z
+    .string({
+      invalid_type_error: "consumed_at must be a string",
+    })
+    .datetime({
+      message: "consumed_at must be a valid ISO 8601 datetime string",
+    })
+    .optional(),
 });
 
 /**

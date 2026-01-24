@@ -12,7 +12,6 @@ interface ThresholdChangeModalProps {
 }
 
 const MIN = 0.08;
-const MAX = 1.6;
 
 const ThresholdChangeModal: React.FC<ThresholdChangeModalProps> = ({
   isOpen,
@@ -34,7 +33,7 @@ const ThresholdChangeModal: React.FC<ThresholdChangeModalProps> = ({
 
   const validate = () => {
     const v = parseFloat(value);
-    if (isNaN(v) || v < MIN || v > MAX) return `Próg musi być w zakresie ${MIN}–${MAX} ‰`;
+    if (isNaN(v) || v < MIN) return `Próg musi być większy lub równy ${MIN} ‰`;
     if (!confirmed) return "Musisz potwierdzić zmianę progu";
     return null;
   };
@@ -61,7 +60,6 @@ const ThresholdChangeModal: React.FC<ThresholdChangeModalProps> = ({
               type="number"
               step="0.01"
               min={MIN}
-              max={MAX}
               id="threshold_bac"
               value={value}
               onChange={(e) => setValue(e.target.value)}

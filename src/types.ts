@@ -193,6 +193,7 @@ export interface AddDrinkCommand {
  * Command for updating the last drink in a party
  */
 export interface UpdateDrinkCommand {
+  consumed_at?: string;
   volume_ml: number;
   abv_percent: number;
 }

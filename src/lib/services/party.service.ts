@@ -32,7 +32,7 @@ import { getUserProfile, isProfileComplete, getMissingFields } from "./profile.s
 import { logError, logInfo } from "../logger";
 import { verifyPartyOwnershipOrThrow } from "../api-helpers";
 import { EventService } from "./event.service";
-import { ERROR_CODES } from "../constants";
+import { ERROR_CODES, BLACKOUT_MIN_THRESHOLD_BAC } from "../constants";
 
 /**
  * Checks if user has an ongoing party
@@ -816,10 +816,9 @@ export async function markBlackout(
   const maxBAC = bacCalc.calculated_bac;
   const now = new Date().toISOString();
 
-  // Ensure new threshold is within valid range (> 0 and <= 0.99)
-  // Threshold cannot be 0 or negative, and must not exceed BAC limit
-  const MAX_THRESHOLD = 0.99;
-  const newThresholdValue = Math.max(0.01, Math.min(maxBAC, MAX_THRESHOLD));
+  // Nowy próg po blackout = maxBAC, ale nie mniej niż minimalny
+  // (nie ograniczamy górą, tylko dołem)
+  const newThresholdValue = Math.max(BLACKOUT_MIN_THRESHOLD_BAC, maxBAC);
 
   // Step 4: Update party with blackout flag (always true)
   const { data: updatedParty, error: updateError } = await supabase
@@ -907,27 +906,61 @@ export async function markBlackout(
     party_id: BigInt(partyId),
   });
 
-  // Step 8: Format and return response
+  // Step 8: Pobierz i zwróć najnowszy próg z bazy (zawsze is_current = true)
+  const { data: currentThreshold, error: currentError } = await supabase
+    .from("userthresholds")
+    .select("id, user_id, threshold_bac, is_current, reason, trigger_party_id, created_at")
+    .eq("user_id", userId)
+    .eq("is_current", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (currentError || !currentThreshold) {
+    logError("Failed to fetch current threshold after blackout", {
+      userId,
+      partyId,
+      error: currentError?.message,
+    });
+    throw {
+      status: 500,
+      code: ERROR_CODES.INTERNAL_SERVER_ERROR,
+      message: "Failed to fetch current threshold after blackout",
+    };
+  }
+
+  // Mapuj currentThreshold do UserThresholdDTO (upewnij się, że typy są zgodne)
+  const mappedThreshold = {
+    id: Number(currentThreshold.id),
+    user_id: String(currentThreshold.user_id),
+    threshold_bac:
+      typeof currentThreshold.threshold_bac === "number"
+        ? currentThreshold.threshold_bac
+        : Number(currentThreshold.threshold_bac),
+    is_current: Boolean(currentThreshold.is_current),
+    reason: currentThreshold.reason as "blackout_marked" | "manual_override" | "default",
+    trigger_party_id:
+      currentThreshold.trigger_party_id !== null && currentThreshold.trigger_party_id !== undefined
+        ? Number(currentThreshold.trigger_party_id)
+        : null,
+    created_at:
+      currentThreshold.created_at !== null && currentThreshold.created_at !== undefined
+        ? new Date(currentThreshold.created_at).toISOString()
+        : new Date().toISOString(),
+  };
+
   const response: MarkBlackoutResponseDTO = {
     id: updatedParty.id,
     blackout_marked: updatedParty.blackout_marked ?? false,
     blackout_marked_at: updatedParty.blackout_marked_at,
-    new_threshold: {
-      id: newThreshold.id,
-      user_id: newThreshold.user_id,
-      threshold_bac: newThreshold.threshold_bac,
-      is_current: newThreshold.is_current,
-      reason: newThreshold.reason,
-      trigger_party_id: newThreshold.trigger_party_id,
-      created_at: newThreshold.created_at || now,
-    },
+    new_threshold: mappedThreshold,
   };
 
   logInfo("Blackout marked successfully", {
     userId,
     partyId,
     maxBAC,
-    newThreshold: newThreshold.threshold_bac,
+    newThreshold: currentThreshold.threshold_bac,
     adjustedFromMaxBAC: maxBAC !== newThresholdValue,
   });
 

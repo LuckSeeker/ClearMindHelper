@@ -1,3 +1,19 @@
+// Stałe do obliczeń BAC (Widmark)
+export const WIDMARK_CONSTANTS = {
+  /** Water distribution coefficient for males */
+  MALE_R: 0.68,
+  /** Water distribution coefficient for females */
+  FEMALE_R: 0.55,
+  /** Average alcohol metabolism rate (grams per kg body weight per hour) */
+  METABOLISM_RATE_PER_KG_PER_HOUR: 0.15,
+  /** Ratio of threshold for "approaching" status (e.g. 0.9 = 90%) */
+  APPROACHING_THRESHOLD_RATIO: 0.9,
+} as const;
+// Domyślny próg BAC (‰) dla nowych użytkowników
+export const DEFAULT_THRESHOLD_BAC = 1.0;
+
+// Minimalny próg BAC po blackout (‰)
+export const BLACKOUT_MIN_THRESHOLD_BAC = 0.01;
 // Error code constants for service and API error handling
 export const ERROR_CODES = {
   PARTY_NOT_FOUND: "PARTY_NOT_FOUND",
