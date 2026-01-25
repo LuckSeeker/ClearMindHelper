@@ -139,6 +139,8 @@ export interface PartyDetailDTO extends PartyDTO {
   current_bac: BACCalculationDTO | null;
   /** Active alerts for this party */
   active_alerts: AlertDTO[];
+  /** All alerts for this party */
+  all_alerts: AlertDTO[];
 }
 
 /**

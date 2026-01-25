@@ -467,21 +467,20 @@ export async function getPartyDetails(
     throw new Error(`Database error: ${drinksError.message}`);
   }
 
-  // Step 4: Fetch active alerts
-  const { data: alertsData, error: alertsError } = await supabase
+  // Step 4: Fetch all alerts (not only active)
+  const { data: allAlertsData, error: allAlertsError } = await supabase
     .from("alerts")
     .select("*")
     .eq("party_id", partyId)
-    .eq("is_active", true)
     .order("triggered_at", { ascending: false });
 
-  if (alertsError) {
-    logError("Failed to fetch active alerts", {
+  if (allAlertsError) {
+    logError("Failed to fetch all alerts", {
       userId,
       partyId,
-      error: alertsError.message,
+      error: allAlertsError.message,
     });
-    throw new Error(`Database error: ${alertsError.message}`);
+    throw new Error(`Database error: ${allAlertsError.message}`);
   }
 
   // Step 5: Transform drinks to DTOs
@@ -525,9 +524,9 @@ export async function getPartyDetails(
       return drinkDTO;
     }) || [];
 
-  // Step 6: Transform alerts to DTOs
-  const activeAlerts: AlertDTO[] =
-    alertsData?.map((alert) => ({
+  // Step 6: Transform all alerts to DTOs
+  const allAlerts: AlertDTO[] =
+    allAlertsData?.map((alert) => ({
       id: alert.id,
       user_id: alert.user_id,
       party_id: alert.party_id,
@@ -564,14 +563,15 @@ export async function getPartyDetails(
     updated_at: party.updated_at ? new Date(party.updated_at).toISOString() : new Date().toISOString(),
     drinks,
     current_bac: currentBAC,
-    active_alerts: activeAlerts,
+    active_alerts: allAlerts.filter((a) => a.is_active),
+    all_alerts: allAlerts,
   };
 
   logInfo("Party details retrieved successfully", {
     userId,
     partyId,
     drinksCount: drinks.length,
-    activeAlertsCount: activeAlerts.length,
+    allAlertsCount: allAlerts.length,
     hasCurrentBAC: currentBAC !== null,
   });
 
