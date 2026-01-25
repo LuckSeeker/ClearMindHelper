@@ -27,12 +27,17 @@ const PartyView: React.FC = () => {
   const { party, drinks, currentBAC, alerts, warning, error, loading } = partyApi.state;
 
   // Modal blackout otwierany tylko po kliknięciu przycisku zamknij imprezę
-  // Filtrowanie alertów: jeśli jest 'exceeded_threshold', nie pokazuj 'approaching_threshold'
+  // Filtrowanie alertów: jeśli jest 'exceeded_threshold', pokazuj tylko ten alert,
+  // w przeciwnym razie pokazuj 'approaching_threshold' jeśli istnieje, lub inne alerty
   const filteredAlerts = React.useMemo(() => {
     if (!alerts || alerts.length === 0) return [];
     const hasExceeded = alerts.some((a) => a.alert_type === "exceeded_threshold");
     if (hasExceeded) {
       return alerts.filter((a) => a.alert_type === "exceeded_threshold");
+    }
+    const hasApproaching = alerts.some((a) => a.alert_type === "approaching_threshold");
+    if (hasApproaching) {
+      return alerts.filter((a) => a.alert_type === "approaching_threshold");
     }
     return alerts;
   }, [alerts]);
@@ -52,25 +57,31 @@ const PartyView: React.FC = () => {
   }, []);
 
   // Map backend BACCalculationDTO to CurrentBACResponseDTO for BACIndicator
-  let headerBAC = currentBAC;
-  if (!headerBAC && party && party.current_bac) {
-    const bac = party.current_bac;
+  // Zawsze wyliczaj threshold_status na podstawie aktualnych wartości BAC i progu
+  let headerBAC = null;
+  if (party && (currentBAC || party.current_bac)) {
+    const bacValue =
+      currentBAC?.current_bac ??
+      (typeof party.current_bac?.calculated_bac === "number" ? party.current_bac.calculated_bac : 0);
+    const threshold = userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC;
+    const approachingValue = WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * threshold;
+    let threshold_status: "exceeded" | "approaching" | "safe" = "safe";
+    if (threshold === 0) {
+      threshold_status = "safe";
+    } else if (bacValue >= threshold) {
+      threshold_status = "exceeded";
+    } else if (bacValue >= approachingValue) {
+      threshold_status = "approaching";
+    }
     headerBAC = {
       party_id: party.id,
-      current_bac: typeof bac.calculated_bac === "number" ? bac.calculated_bac : 0,
-      calculated_at: bac.calculation_timestamp || new Date().toISOString(),
-      time_since_last_drink_minutes: 0, // Not available in BACCalculationDTO
-      time_since_first_drink_minutes: 0, // Not available in BACCalculationDTO
-      current_threshold: userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC,
-      threshold_status: (() => {
-        const bacValue = typeof bac.calculated_bac === "number" ? bac.calculated_bac : 0;
-        const threshold = userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC;
-        if (threshold === 0) return "safe";
-        if (bacValue >= threshold) return "exceeded";
-        if (bacValue >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * threshold) return "approaching";
-        return "safe";
-      })(),
-      estimated_time_to_sober_minutes: null,
+      current_bac: bacValue,
+      calculated_at: currentBAC?.calculated_at || party.current_bac?.calculation_timestamp || new Date().toISOString(),
+      time_since_last_drink_minutes: currentBAC?.time_since_last_drink_minutes ?? 0,
+      time_since_first_drink_minutes: currentBAC?.time_since_first_drink_minutes ?? 0,
+      current_threshold: threshold,
+      threshold_status,
+      estimated_time_to_sober_minutes: currentBAC?.estimated_time_to_sober_minutes ?? null,
     };
   }
   const { startParty, closeParty: closePartyOrig, markBlackout, clearError } = partyApi;
@@ -227,7 +238,7 @@ const PartyView: React.FC = () => {
       {/* startParty, closeParty, markBlackout muszą być zaimplementowane w hooku useParty i zwracane, jeśli mają być używane */}
       {party && !loading ? (
         <>
-          <PartyHeader party={party} currentBAC={currentBAC} alerts={filteredAlerts} />
+          <PartyHeader party={party} currentBAC={headerBAC} alerts={filteredAlerts} />
           <DrinksTable
             drinks={drinks as DrinkWithBACDTO[]}
             party={party}

@@ -10,6 +10,8 @@ interface PartyHeaderProps {
 }
 
 function PartyHeaderComponent({ party, currentBAC, alerts }: PartyHeaderProps) {
+  // Debug: log przekazywane alerty
+  console.log("[PartyHeader] alerts:", alerts);
   return (
     <header className="flex flex-col gap-2 w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">

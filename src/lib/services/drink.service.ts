@@ -11,6 +11,7 @@
  */
 
 import { ERROR_CODES } from "../constants";
+import { WIDMARK_CONSTANTS } from "../constants";
 import type { SupabaseClient } from "../../db/supabase.client";
 import { parseProfileSnapshot, profileSnapshotToJson } from "../type-guards";
 import type {
@@ -48,9 +49,6 @@ const FAST_CONSUMPTION_THRESHOLD_MINUTES = 15;
 
 /** Tolerance for consumed_at before/after party (5 minutes in ms) */
 export const CONSUMED_AT_TOLERANCE_MS = 5 * 60 * 1000;
-
-/** BAC approaching threshold multiplier (90% of threshold) */
-const APPROACHING_THRESHOLD_MULTIPLIER = 0.9;
 
 /** Maksymalny dozwolony BAC w promilach (‰) (decimal(4,2) limit) */
 const MAX_BAC_LIMIT = 5.0;
@@ -383,6 +381,7 @@ export async function manageAlert(
   alertType: "approaching_threshold" | "exceeded_threshold",
   calculatedBAC: number
 ): Promise<Alert> {
+  console.log(`[ALERT-CALL] alertType=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
   // Check if alert already exists
   const { data: existingAlert, error: fetchError } = await supabase
     .from("alerts")
@@ -413,7 +412,8 @@ export async function manageAlert(
       logError("Failed to update alert", { alertId: existingAlert.id, error: updateError.message });
       throw new Error(`Database error: ${updateError.message}`);
     }
-
+    // Log info for debug
+    console.log(`[ALERT-UPDATE] alert_type=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
     return updatedAlert;
   } else {
     // Create new alert
@@ -434,7 +434,8 @@ export async function manageAlert(
       logError("Failed to create alert", { partyId, alertType, error: insertError.message });
       throw new Error(`Database error: ${insertError.message}`);
     }
-
+    // Log info for debug
+    console.log(`[ALERT-CREATE] alert_type=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
     return newAlert;
   }
 }
@@ -680,12 +681,24 @@ export async function addDrinkToParty(
   const thresholdBAC = await getUserThreshold(supabase, userId);
   const alertsList: Alert[] = [];
 
-  if (calculatedBAC >= APPROACHING_THRESHOLD_MULTIPLIER * thresholdBAC) {
+  // Debug: log BAC i progi
+  console.log(
+    "[ALERT-DEBUG] calculatedBAC:",
+    calculatedBAC,
+    "thresholdBAC:",
+    thresholdBAC,
+    "approaching:",
+    WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC
+  );
+
+  if (calculatedBAC >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC) {
+    console.log("[ALERT-DEBUG] BAC przekroczył próg approaching_threshold");
     const alert = await manageAlert(supabase, partyId, userId, "approaching_threshold", calculatedBAC);
     alertsList.push(alert);
   }
 
   if (calculatedBAC >= thresholdBAC) {
+    console.log("[ALERT-DEBUG] BAC przekroczył próg exceeded_threshold");
     const alert = await manageAlert(supabase, partyId, userId, "exceeded_threshold", calculatedBAC);
     alertsList.push(alert);
   }
@@ -992,11 +1005,23 @@ export async function updateLastDrink(
   // Get user threshold and create new alerts if needed
   const thresholdBAC = await getUserThreshold(supabase, userId);
 
-  if (calculatedBAC >= APPROACHING_THRESHOLD_MULTIPLIER * thresholdBAC) {
+  // Debug: log BAC i progi przy edycji
+  console.log(
+    "[ALERT-DEBUG][EDIT] calculatedBAC:",
+    calculatedBAC,
+    "thresholdBAC:",
+    thresholdBAC,
+    "approaching:",
+    WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC
+  );
+
+  if (calculatedBAC >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC) {
+    console.log("[ALERT-DEBUG][EDIT] BAC przekroczył próg approaching_threshold");
     await manageAlert(supabase, partyId, userId, "approaching_threshold", calculatedBAC);
   }
 
   if (calculatedBAC >= thresholdBAC) {
+    console.log("[ALERT-DEBUG][EDIT] BAC przekroczył próg exceeded_threshold");
     await manageAlert(supabase, partyId, userId, "exceeded_threshold", calculatedBAC);
   }
 

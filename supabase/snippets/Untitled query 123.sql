@@ -16,3 +16,5 @@ delete from parties where id = 5;
 
 select * from baccalculations
 truncate parties cascade
+
+select * from alerts order by triggered_at desc;

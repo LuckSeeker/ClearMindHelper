@@ -10,7 +10,7 @@ const getStatusColor = (status: string) => {
     case "exceeded":
       return "bg-red-500";
     case "approaching":
-      return "bg-yellow-400";
+      return "bg-orange-400"; // bardziej pomarańczowy
     case "safe":
     default:
       return "bg-green-500";

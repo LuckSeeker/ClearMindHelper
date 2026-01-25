@@ -6,6 +6,8 @@ interface AlertsPanelProps {
 }
 
 function AlertsPanelComponent({ alerts }: AlertsPanelProps) {
+  // Debug: log przekazywane alerty
+  console.log("[AlertsPanel] alerts:", alerts);
   if (!alerts || alerts.length === 0) return null;
   return (
     <div className="flex flex-col gap-1 mt-2" aria-live="polite">

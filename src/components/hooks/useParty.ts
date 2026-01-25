@@ -75,6 +75,7 @@ export function useParty() {
         const details = await detailsRes.json();
         dispatch({ type: "SET_PARTY", payload: details });
         dispatch({ type: "SET_DRINKS", payload: details.drinks || [] });
+        dispatch({ type: "SET_ALERTS", payload: details.active_alerts || [] });
         // --- MAPOWANIE BACCalculationDTO na CurrentBACResponseDTO ---
         let bac: CurrentBACResponseDTO | null = null;
         const cbac = details.current_bac;
