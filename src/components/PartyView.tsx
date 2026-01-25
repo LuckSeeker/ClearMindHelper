@@ -5,6 +5,7 @@ import PartyHeader from "./PartyHeader.tsx";
 import DrinksTable from "./DrinksTable.tsx";
 import ClosePartyButton from "./ClosePartyButton.tsx";
 import BlackoutModal from "./BlackoutModal.tsx";
+import ThresholdExceededModal from "./ThresholdExceededModal";
 import WarningModal from "./WarningModal.tsx";
 import AddEditDrinkModal from "./AddEditDrinkModal.tsx";
 import { useParty } from "./hooks/useParty";
@@ -86,13 +87,17 @@ const PartyView: React.FC = () => {
   }
   const { startParty, closeParty: closePartyOrig, markBlackout, clearError } = partyApi;
 
-  // Blackout modal state
+  // Blackout & ThresholdExceeded modal state
   const [blackoutModalOpen, setBlackoutModalOpen] = useState(false);
+  const [thresholdModalOpen, setThresholdModalOpen] = useState(false);
+  const [maxBACDuringParty, setMaxBACDuringParty] = useState<number | null>(null);
 
-  // Owijka na closeParty, która otwiera modal blackout
+  // Owijka na closeParty, która otwiera najpierw modal blackout, potem ewentualnie threshold modal
   const handleCloseParty = async () => {
     if (party) setLastClosedParty(party); // zapisz party przed zamknięciem
-    await closePartyOrig();
+    // Zamknij imprezę i pobierz max BAC z backendu
+    const maxBAC = await closePartyOrig();
+    setMaxBACDuringParty(maxBAC);
     setBlackoutModalOpen(true);
   };
 
@@ -292,6 +297,7 @@ const PartyView: React.FC = () => {
       )}
 
       {/* BlackoutModal renderowany niezależnie od party */}
+
       <BlackoutModal
         party={lastClosedParty}
         open={blackoutModalOpen}
@@ -302,6 +308,33 @@ const PartyView: React.FC = () => {
         }}
         onCancel={() => {
           setBlackoutModalOpen(false);
+          // Po zamknięciu blackout modal, jeśli max BAC > threshold, pokaż threshold modal
+          const threshold = userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC;
+          if ((maxBACDuringParty ?? 0) > threshold) {
+            setThresholdModalOpen(true);
+          } else {
+            setLastClosedParty(null);
+          }
+        }}
+      />
+      <ThresholdExceededModal
+        open={thresholdModalOpen}
+        maxBAC={maxBACDuringParty ?? 0}
+        threshold={userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC}
+        onConfirm={async () => {
+          // Zaktualizuj próg użytkownika do maxBAC
+          if (maxBACDuringParty && userThreshold) {
+            await fetch(`/api/thresholds/current`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ threshold_bac: maxBACDuringParty }),
+            });
+          }
+          setThresholdModalOpen(false);
+          setLastClosedParty(null);
+        }}
+        onCancel={() => {
+          setThresholdModalOpen(false);
           setLastClosedParty(null);
         }}
       />

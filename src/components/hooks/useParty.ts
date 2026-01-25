@@ -207,18 +207,20 @@ export function useParty() {
         body: JSON.stringify(command),
       });
       if (!res.ok) throw new Error("Nie udało się zamknąć imprezy");
-      // Po zamknięciu imprezy można wyczyścić stan lub pobrać szczegóły zamkniętej imprezy
+      const data = await res.json();
       dispatch({ type: "SET_PARTY", payload: null });
       dispatch({ type: "SET_DRINKS", payload: [] });
       dispatch({ type: "SET_BAC", payload: null });
       dispatch({ type: "SET_ALERTS", payload: [] });
       dispatch({ type: "SET_ERROR", payload: null });
+      return data?.bac_estimate_max ?? null;
     } catch (e: unknown) {
       const message =
         e && typeof e === "object" && "message" in e
           ? ((e as { message?: string }).message ?? "Błąd zamykania imprezy")
           : "Błąd zamykania imprezy";
       dispatch({ type: "SET_ERROR", payload: { error: { code: "CLOSE_PARTY_ERROR", message } } });
+      return null;
     } finally {
       dispatch({ type: "SET_LOADING", payload: false });
     }
