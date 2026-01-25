@@ -460,9 +460,36 @@ export interface PaginationMeta {
 }
 
 /**
- * Generic paginated response
+ * ViewModel for global alert (used in context)
  */
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: PaginationMeta;
+export interface GlobalAlertViewModel {
+  id: number | string;
+  type: "info" | "warning" | "error";
+  message: string;
+  alertType?: "approaching_threshold" | "exceeded_threshold";
+  triggeredAt?: string;
+  lastAlertSentAt?: string;
+  actions?: { label: string; onClick: () => void }[];
+  autoClose?: boolean;
+  severity?: "info" | "warning" | "error";
+}
+
+/**
+ * ViewModel for toast notification
+ */
+export interface ToastViewModel {
+  id: number | string;
+  message: string;
+  type: "info" | "warning" | "error";
+  autoClose?: boolean;
+}
+
+/**
+ * ViewModel for modal alert
+ */
+export interface ModalAlertViewModel {
+  id: number | string;
+  title: string;
+  message: string;
+  actions?: { label: string; onClick: () => void }[];
 }

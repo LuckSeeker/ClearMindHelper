@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "./ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogFooter, DialogDescription } from "./ui/dialog";
 
 interface ThresholdChangeModalProps {
   isOpen: boolean;
@@ -48,9 +48,10 @@ const ThresholdChangeModal: React.FC<ThresholdChangeModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle id="threshold-modal-title">Zmień próg BAC</DialogTitle>
-        </DialogHeader>
+        <DialogTitle id="threshold-modal-title">Zmień próg BAC</DialogTitle>
+        <DialogDescription>
+          Ustaw nowy próg BAC, aby otrzymywać powiadomienia przy jego przekroczeniu.
+        </DialogDescription>
         <form onSubmit={handleSubmit} className="space-y-4" aria-labelledby="threshold-modal-title">
           <div>
             <label htmlFor="threshold_bac" className="block font-medium">

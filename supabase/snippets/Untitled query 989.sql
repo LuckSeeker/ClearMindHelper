@@ -1,1 +1,1 @@
-select * from parties;
+select * from alerts order by created_at desc;

@@ -201,14 +201,14 @@ export function validateBACLimit(
   volumeMl: number,
   abvPercent: number,
   currentTotalAlcohol: number,
-  profileSnapshot: ProfileSnapshot,
-  timeElapsedHours: number
+  profileSnapshot: ProfileSnapshot
 ): { valid: boolean; error?: { code: string; message: string } } {
-  // Calculate what BAC would be with this drink
+  // Prosta walidacja: sprawdź czy suma alkoholu nie przekracza limitu (nie uwzględnia metabolizmu)
   const newAlcoholGrams = calculateAlcoholGrams(volumeMl, abvPercent);
   const totalWithNewDrink = currentTotalAlcohol + newAlcoholGrams;
-  const projectedBAC = calculateBAC(totalWithNewDrink, profileSnapshot, timeElapsedHours);
-
+  const bodyWeightGrams = profileSnapshot.weight_kg * 1000;
+  const widmarkR = profileSnapshot.gender === "M" ? WIDMARK_R_MALE : WIDMARK_R_FEMALE;
+  const projectedBAC = (totalWithNewDrink / (bodyWeightGrams * widmarkR)) * 1000;
   if (projectedBAC > MAX_BAC_LIMIT) {
     return {
       valid: false,
@@ -218,7 +218,6 @@ export function validateBACLimit(
       },
     };
   }
-
   return { valid: true };
 }
 
@@ -234,38 +233,34 @@ export function calculateAlcoholGrams(volumeMl: number, abvPercent: number): num
 }
 
 /**
- * Calculates BAC using Widmark formula
+ * Calculates BAC using improved Widmark formula:
+ * Suma pozostałości alkoholu z każdego drinka po metabolizmie od czasu spożycia.
  *
- * Formula: BAC = (alcohol_grams / (body_weight_grams * r)) * 100
- * Where r is Widmark factor (0.68 for male, 0.55 for female)
- *
- * @param totalAlcoholGrams - Total alcohol consumed in grams
- * @param profileSnapshot - User profile at party start
- * @param timeElapsedHours - Time elapsed since party start
- * @param metabolizationRate - Alcohol metabolization rate in g/hour
- * @returns BAC percentage
+ * @param drinks - lista drinków (musi mieć volume_ml, abv_percent, consumed_at)
+ * @param profileSnapshot - profil użytkownika
+ * @param now - czas obliczenia BAC (Date)
+ * @param metabolizationRate - tempo metabolizmu (g/h)
  */
-export function calculateBAC(
-  totalAlcoholGrams: number,
+export function calculateBACAccurate(
+  drinks: { volume_ml: number; abv_percent: number; consumed_at: string }[],
   profileSnapshot: ProfileSnapshot,
-  timeElapsedHours: number,
+  now: Date,
   metabolizationRate: number = DEFAULT_METABOLIZATION_RATE
 ): number {
   const bodyWeightGrams = profileSnapshot.weight_kg * 1000;
   const widmarkR = profileSnapshot.gender === "M" ? WIDMARK_R_MALE : WIDMARK_R_FEMALE;
 
-  // Calculate initial BAC
-  const initialBAC = totalAlcoholGrams / (bodyWeightGrams * widmarkR);
-
-  // Calculate metabolized alcohol
-  const metabolizedAlcohol = timeElapsedHours * metabolizationRate;
-
-  // Adjust BAC for metabolism
-  const metabolizedBAC = metabolizedAlcohol / (bodyWeightGrams * widmarkR);
-  const adjustedBAC = Math.max(0, initialBAC - metabolizedBAC);
-
-  // Zwracaj BAC w promilach (‰)
-  return adjustedBAC * 1000;
+  let totalRemainingAlcohol = 0;
+  for (const drink of drinks) {
+    const alcoholGrams = calculateAlcoholGrams(drink.volume_ml, drink.abv_percent);
+    const consumedAt = new Date(drink.consumed_at);
+    const hoursElapsed = (now.getTime() - consumedAt.getTime()) / (1000 * 60 * 60);
+    const metabolized = Math.max(0, hoursElapsed) * metabolizationRate;
+    const remaining = Math.max(0, alcoholGrams - metabolized);
+    totalRemainingAlcohol += remaining;
+  }
+  const bac = (totalRemainingAlcohol / (bodyWeightGrams * widmarkR)) * 1000;
+  return Math.max(0, bac);
 }
 
 /**
@@ -381,7 +376,7 @@ export async function manageAlert(
   alertType: "approaching_threshold" | "exceeded_threshold",
   calculatedBAC: number
 ): Promise<Alert> {
-  console.log(`[ALERT-CALL] alertType=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
+  // ...removed console.log for linter...
   // Check if alert already exists
   const { data: existingAlert, error: fetchError } = await supabase
     .from("alerts")
@@ -413,7 +408,7 @@ export async function manageAlert(
       throw new Error(`Database error: ${updateError.message}`);
     }
     // Log info for debug
-    console.log(`[ALERT-UPDATE] alert_type=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
+    // ...removed console.log for linter...
     return updatedAlert;
   } else {
     // Create new alert
@@ -435,7 +430,7 @@ export async function manageAlert(
       throw new Error(`Database error: ${insertError.message}`);
     }
     // Log info for debug
-    console.log(`[ALERT-CREATE] alert_type=${alertType}, partyId=${partyId}, userId=${userId}, BAC=${calculatedBAC}`);
+    // ...removed console.log for linter...
     return newAlert;
   }
 }
@@ -540,10 +535,8 @@ export async function addDrinkToParty(
     throw error;
   }
 
-  // 4. Get first drink time or use current consumed_at for first drink
-  const firstDrink = await getFirstDrink(supabase, partyId);
-  const firstDrinkTime = firstDrink ? new Date(firstDrink.consumed_at) : consumedAt;
-  const timeElapsedHours = (consumedAt.getTime() - firstDrinkTime.getTime()) / (1000 * 60 * 60);
+  // 4. Get first drink (no longer used for time calculations)
+  await getFirstDrink(supabase, partyId);
 
   // 5. Validate BAC limit would not be exceeded
   const currentTotalAlcohol = await getTotalAlcoholConsumed(supabase, partyId);
@@ -553,8 +546,7 @@ export async function addDrinkToParty(
     command.volume_ml,
     command.abv_percent,
     currentTotalAlcohol,
-    profileSnapshot,
-    timeElapsedHours
+    profileSnapshot
   );
 
   if (!bacLimitValidation.valid && bacLimitValidation.error) {
@@ -647,14 +639,28 @@ export async function addDrinkToParty(
     throw new Error(`Database error: ${drinkError.message}`);
   }
 
-  // 9. Calculate BAC
-  const totalAlcoholGrams = await getTotalAlcoholConsumed(supabase, partyId);
-  const timeElapsedMinutes = Math.round(timeElapsedHours * 60);
+  // 9. Calculate BAC (nowy algorytm)
+  const { data: allDrinks, error: allDrinksError } = await supabase
+    .from("drinks")
+    .select("volume_ml, abv_percent, consumed_at")
+    .eq("party_id", partyId);
+  if (allDrinksError) {
+    logError("Failed to fetch all drinks for BACAccurate", { partyId, error: allDrinksError.message });
+    throw new Error(`Database error: ${allDrinksError.message}`);
+  }
+  const calculatedBAC = calculateBACAccurate(allDrinks || [], profileSnapshot, consumedAt);
 
-  const calculatedBAC = calculateBAC(totalAlcoholGrams, profileSnapshot, timeElapsedHours);
-
-  // Calculate metabolized alcohol
-  const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
+  // Calculate metabolized alcohol (suma metabolizmu dla wszystkich drinków)
+  let metabolizedAlcohol = 0;
+  for (const drink of allDrinks || []) {
+    const consumedAtDrink = new Date(drink.consumed_at);
+    const hoursElapsed = (consumedAt.getTime() - consumedAtDrink.getTime()) / (1000 * 60 * 60);
+    metabolizedAlcohol += Math.max(0, hoursElapsed) * DEFAULT_METABOLIZATION_RATE;
+  }
+  const timeElapsedMinutes =
+    allDrinks && allDrinks.length > 0
+      ? Math.round((consumedAt.getTime() - new Date(allDrinks[0].consumed_at).getTime()) / (1000 * 60))
+      : 0;
 
   // 10. Insert BAC calculation
   const { data: bacCalculation, error: bacError } = await supabase
@@ -682,23 +688,16 @@ export async function addDrinkToParty(
   const alertsList: Alert[] = [];
 
   // Debug: log BAC i progi
-  console.log(
-    "[ALERT-DEBUG] calculatedBAC:",
-    calculatedBAC,
-    "thresholdBAC:",
-    thresholdBAC,
-    "approaching:",
-    WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC
-  );
+  // ...removed console.log for linter...
 
   if (calculatedBAC >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC) {
-    console.log("[ALERT-DEBUG] BAC przekroczył próg approaching_threshold");
+    // ...removed console.log for linter...
     const alert = await manageAlert(supabase, partyId, userId, "approaching_threshold", calculatedBAC);
     alertsList.push(alert);
   }
 
   if (calculatedBAC >= thresholdBAC) {
-    console.log("[ALERT-DEBUG] BAC przekroczył próg exceeded_threshold");
+    // ...removed console.log for linter...
     const alert = await manageAlert(supabase, partyId, userId, "exceeded_threshold", calculatedBAC);
     alertsList.push(alert);
   }
@@ -850,9 +849,8 @@ export async function updateLastDrink(
 
   // 5. Validate BAC limit with updated values
   const profileSnapshot = parseProfileSnapshot(party.profile_snapshot);
-  const partyStartTime = new Date(party.started_at);
-  const consumedAt = new Date(drink.consumed_at);
-  const timeElapsedHours = (consumedAt.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
+  // Removed unused variables partyStartTime and consumedAt
+  // Removed unused variable timeElapsedHours
 
   // Calculate total alcohol WITHOUT this drink, then add the new values
   const allDrinks = await supabase.from("drinks").select("*").eq("party_id", partyId).order("order_sequence");
@@ -870,8 +868,7 @@ export async function updateLastDrink(
     command.volume_ml,
     command.abv_percent,
     totalAlcoholWithoutThisDrink,
-    profileSnapshot,
-    timeElapsedHours
+    profileSnapshot
   );
 
   if (!bacLimitValidation.valid && bacLimitValidation.error) {
@@ -930,33 +927,61 @@ export async function updateLastDrink(
     throw new Error(`Database error: ${updateError.message}`);
   }
 
-  // 8. Recalculate BAC for this drink
-  const totalAlcoholGrams =
-    totalAlcoholWithoutThisDrink + calculateAlcoholGrams(command.volume_ml, command.abv_percent);
-
-  const calculatedBAC = calculateBAC(totalAlcoholGrams, profileSnapshot, timeElapsedHours);
-  const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
-
-  // 9. Update BAC calculation
-  const timeElapsedMinutes = Math.round(timeElapsedHours * 60);
-  const { data: bacCalculation, error: bacUpdateError } = await supabase
-    .from("baccalculations")
-    .update({
-      calculated_bac: calculatedBAC,
-      metabolized_alcohol_g: metabolizedAlcohol,
-      calculation_timestamp: new Date().toISOString(),
-      time_since_first_drink_minutes: timeElapsedMinutes,
-    })
-    .eq("drink_id", drinkId)
-    .select()
-    .maybeSingle();
-
-  if (bacUpdateError) {
-    logError("Failed to update BAC calculation", { drinkId, error: bacUpdateError.message });
-    throw new Error(`Database error: ${bacUpdateError.message}`);
+  // 8. Recalculate BAC for all drinks in the party
+  const { data: allDrinksEdit, error: allDrinksEditError } = await supabase
+    .from("drinks")
+    .select("id, volume_ml, abv_percent, consumed_at")
+    .eq("party_id", partyId)
+    .order("consumed_at");
+  if (allDrinksEditError) {
+    logError("Failed to fetch all drinks for BACAccurate (edit)", { partyId, error: allDrinksEditError.message });
+    throw new Error(`Database error: ${allDrinksEditError.message}`);
   }
 
-  if (!bacCalculation) {
+  let bacCalculation: BACCalculationDTO | null = null;
+  let calculatedBAC: number | null = null;
+  // Removed unused variable now
+  for (const drink of allDrinksEdit || []) {
+    // BAC at the time of this drink
+    const drinksUpToThis = (allDrinksEdit || []).filter((d) => new Date(d.consumed_at) <= new Date(drink.consumed_at));
+    const bac = calculateBACAccurate(drinksUpToThis, profileSnapshot, new Date(drink.consumed_at));
+    const partyStart = new Date(party.started_at);
+    const timeElapsedMinutes = Math.round((new Date(drink.consumed_at).getTime() - partyStart.getTime()) / (1000 * 60));
+    const timeElapsedHours = timeElapsedMinutes / 60;
+    const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
+
+    const { data: updatedBac, error: bacUpdateError } = await supabase
+      .from("baccalculations")
+      .update({
+        calculated_bac: bac,
+        metabolized_alcohol_g: metabolizedAlcohol,
+        calculation_timestamp: new Date(drink.consumed_at).toISOString(),
+        time_since_first_drink_minutes: timeElapsedMinutes,
+      })
+      .eq("drink_id", drink.id)
+      .select()
+      .maybeSingle();
+
+    if (bacUpdateError) {
+      logError("Failed to update BAC calculation", { drinkId: drink.id, error: bacUpdateError.message });
+      throw new Error(`Database error: ${bacUpdateError.message}`);
+    }
+    // Save the BAC calculation for the edited drink to return in response
+    if (drink.id === drinkId) {
+      // Fix type: ensure calculation_timestamp and created_at are string, never null
+      if (updatedBac) {
+        bacCalculation = {
+          ...updatedBac,
+          calculation_timestamp: updatedBac.calculation_timestamp ?? new Date(drink.consumed_at).toISOString(),
+          created_at: updatedBac.created_at ?? new Date().toISOString(),
+          user_profile_snapshot: profileSnapshot,
+        };
+        calculatedBAC = bac;
+      }
+    }
+  }
+
+  if (!bacCalculation || calculatedBAC === null) {
     logError("BAC calculation not found for drink after update", { drinkId });
     throw new Error("BAC calculation not found");
   }
@@ -976,14 +1001,20 @@ export async function updateLastDrink(
 
   // Calculate max BAC across all drinks
   let maxBAC = 0;
-  let cumulativeAlcohol = 0;
 
-  for (const d of allDrinksUpdated || []) {
-    cumulativeAlcohol += calculateAlcoholGrams(d.volume_ml, d.abv_percent);
-    const drinkTime = new Date(d.consumed_at);
-    const timeFromStart = (drinkTime.getTime() - partyStartTime.getTime()) / (1000 * 60 * 60);
-    const bac = calculateBAC(cumulativeAlcohol, profileSnapshot, timeFromStart);
-    maxBAC = Math.max(maxBAC, bac);
+  if (allDrinksUpdated) {
+    for (let i = 0; i < (allDrinksUpdated?.length ?? 0); i++) {
+      const { data: allDrinksMax, error: allDrinksMaxError } = await supabase
+        .from("drinks")
+        .select("volume_ml, abv_percent, consumed_at")
+        .eq("party_id", partyId);
+      if (allDrinksMaxError) {
+        logError("Failed to fetch all drinks for BACAccurate (max)", { partyId, error: allDrinksMaxError.message });
+        throw new Error(`Database error: ${allDrinksMaxError.message}`);
+      }
+      const bac = calculateBACAccurate(allDrinksMax || [], profileSnapshot, new Date());
+      maxBAC = Math.max(maxBAC, bac);
+    }
   }
 
   // Calculate total ml consumed
@@ -1006,22 +1037,13 @@ export async function updateLastDrink(
   const thresholdBAC = await getUserThreshold(supabase, userId);
 
   // Debug: log BAC i progi przy edycji
-  console.log(
-    "[ALERT-DEBUG][EDIT] calculatedBAC:",
-    calculatedBAC,
-    "thresholdBAC:",
-    thresholdBAC,
-    "approaching:",
-    WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC
-  );
+  // ...removed console.log for linter...
 
   if (calculatedBAC >= WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * thresholdBAC) {
-    console.log("[ALERT-DEBUG][EDIT] BAC przekroczył próg approaching_threshold");
     await manageAlert(supabase, partyId, userId, "approaching_threshold", calculatedBAC);
   }
 
   if (calculatedBAC >= thresholdBAC) {
-    console.log("[ALERT-DEBUG][EDIT] BAC przekroczył próg exceeded_threshold");
     await manageAlert(supabase, partyId, userId, "exceeded_threshold", calculatedBAC);
   }
 

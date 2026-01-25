@@ -41,6 +41,7 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
 }) {
+  // Usunięto nieużywaną funkcję containsDialogTitle
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />

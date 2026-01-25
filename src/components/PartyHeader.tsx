@@ -1,17 +1,14 @@
 import React from "react";
 import BACIndicator from "./BACIndicator";
-import AlertsPanel from "./AlertsPanel.tsx";
-import type { PartyDetailDTO, CurrentBACResponseDTO, AlertDTO } from "../types";
+import { AlertsPanel } from "./AlertsPanel.tsx";
+import type { PartyDetailDTO, CurrentBACResponseDTO } from "../types";
 
 interface PartyHeaderProps {
   party: PartyDetailDTO;
   currentBAC: CurrentBACResponseDTO | null;
-  alerts: AlertDTO[];
 }
 
-function PartyHeaderComponent({ party, currentBAC, alerts }: PartyHeaderProps) {
-  // Debug: log przekazywane alerty
-  console.log("[PartyHeader] alerts:", alerts);
+function PartyHeaderComponent({ party, currentBAC }: PartyHeaderProps) {
   return (
     <header className="flex flex-col gap-2 w-full">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
@@ -23,7 +20,7 @@ function PartyHeaderComponent({ party, currentBAC, alerts }: PartyHeaderProps) {
         </div>
         {currentBAC && <BACIndicator currentBAC={currentBAC} />}
       </div>
-      <AlertsPanel alerts={alerts} />
+      <AlertsPanel />
     </header>
   );
 }

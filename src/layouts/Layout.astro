@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import Framework from "../components/Framework.tsx";
 
 interface Props {
   title?: string;
@@ -20,7 +21,10 @@ const { title = "10x Astro Starter" } = Astro.props;
     <title>{title}</title>
   </head>
   <body>
-    <slot />
+    <!-- Framework (React) wraps the app for global notifications -->
+    <Framework>
+      <slot />
+    </Framework>
   </body>
 </html>
 

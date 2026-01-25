@@ -1,3 +1,4 @@
+import { AlertsPanel } from "./AlertsPanel";
 import React, { useState } from "react";
 
 import PartyStartButton from "./PartyStartButton.tsx";
@@ -8,40 +9,29 @@ import BlackoutModal from "./BlackoutModal.tsx";
 import ThresholdExceededModal from "./ThresholdExceededModal";
 import WarningModal from "./WarningModal.tsx";
 import AddEditDrinkModal from "./AddEditDrinkModal.tsx";
+
 import { useParty } from "./hooks/useParty";
+import { useAlertsPolling } from "./hooks/useAlertsPolling";
 
 import type { DrinkWithBACDTO, DrinkDTO, UserThresholdDTO, PartyDetailDTO } from "../types";
 import type { AddDrinkFormModel } from "./AddEditDrinkModal";
 import { logError } from "@/lib/logger.ts";
 import { getCurrentThreshold } from "../lib/services/threshold.service";
 import { supabaseClient, DEFAULT_USER_ID } from "../db/supabase.client";
-import { DEFAULT_THRESHOLD_BAC } from "../lib/constants";
-import { WIDMARK_CONSTANTS } from "../lib/constants";
+import { DEFAULT_THRESHOLD_BAC, WIDMARK_CONSTANTS } from "../lib/constants";
 
 const PartyView: React.FC = () => {
   // Stan na ostatnio zamkniętą imprezę (do modala blackout)
   const [lastClosedParty, setLastClosedParty] = useState<PartyDetailDTO | null>(null);
   // Przykładowo partyId może być pobierane z props, routera lub kontekstu
   // const partyId = undefined; // TODO: podłącz partyId z routera/kontekstu
-
   const partyApi = useParty();
-  const { party, drinks, currentBAC, alerts, warning, error, loading } = partyApi.state;
+  const { party, drinks, currentBAC, warning, error, loading } = partyApi.state;
+  // const { alerts: globalAlerts, addAlert, removeAlert } = useGlobalAlerts();
 
-  // Modal blackout otwierany tylko po kliknięciu przycisku zamknij imprezę
-  // Filtrowanie alertów: jeśli jest 'exceeded_threshold', pokazuj tylko ten alert,
-  // w przeciwnym razie pokazuj 'approaching_threshold' jeśli istnieje, lub inne alerty
-  const filteredAlerts = React.useMemo(() => {
-    if (!alerts || alerts.length === 0) return [];
-    const hasExceeded = alerts.some((a) => a.alert_type === "exceeded_threshold");
-    if (hasExceeded) {
-      return alerts.filter((a) => a.alert_type === "exceeded_threshold");
-    }
-    const hasApproaching = alerts.some((a) => a.alert_type === "approaching_threshold");
-    if (hasApproaching) {
-      return alerts.filter((a) => a.alert_type === "approaching_threshold");
-    }
-    return alerts;
-  }, [alerts]);
+  // Zarządzanie alertami BAC odbywa się wyłącznie przez useAlertsPolling
+  // Wywołanie hooka polling, pobieramy ref do natychmiastowego fetchowania alertów
+  const alertsPollingRef = useAlertsPolling(party?.id ?? null);
 
   // Stan na aktualny próg użytkownika
   const [userThreshold, setUserThreshold] = React.useState<UserThresholdDTO | null>(null);
@@ -222,10 +212,15 @@ const PartyView: React.FC = () => {
 
     // Pierwsza próba bez confirm_warnings lub z potwierdzeniem
     await submitDrink(values, confirmWarnings);
+    // Po dodaniu/edycji drinka natychmiast pobierz alerty
+    if (alertsPollingRef?.current) {
+      await alertsPollingRef.current();
+    }
   };
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto p-4">
+      <AlertsPanel />
       {loading && (
         <div className="flex justify-center items-center h-32">
           <span className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neutral-800 mr-2" />
@@ -243,7 +238,7 @@ const PartyView: React.FC = () => {
       {/* startParty, closeParty, markBlackout muszą być zaimplementowane w hooku useParty i zwracane, jeśli mają być używane */}
       {party && !loading ? (
         <>
-          <PartyHeader party={party} currentBAC={headerBAC} alerts={filteredAlerts} />
+          <PartyHeader party={party} currentBAC={headerBAC} />
           <DrinksTable
             drinks={drinks as DrinkWithBACDTO[]}
             party={party}

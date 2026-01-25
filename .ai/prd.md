@@ -129,7 +129,7 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
   - Tytuł: Alert po przekroczeniu progu
   - Opis: Jako użytkownik chcę otrzymać powtarzające się powiadomienia co 5 minut po przekroczeniu progu, aby utrzymać świadomość ryzyka.
   - Kryteria akceptacji:
-    - Po przekroczeniu domyślnego progu 1.6‰ powiadomienia powtarzają się co 5 minut.
+    - Po przekroczeniu progu powiadomienia powtarzają się co 5 minut.
 
 - US-012
   - Tytuł: Walidacja nierealistycznych wartości

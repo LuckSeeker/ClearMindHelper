@@ -1,28 +1,23 @@
 import React from "react";
-import type { AlertDTO } from "../types";
+import { useGlobalAlerts } from "./hooks/useGlobalAlerts";
+import { InlineError } from "./InlineError";
 
-interface AlertsPanelProps {
-  alerts: AlertDTO[];
-}
+export const AlertsPanel: React.FC = () => {
+  const { alerts, removeAlert } = useGlobalAlerts();
 
-function AlertsPanelComponent({ alerts }: AlertsPanelProps) {
-  // Debug: log przekazywane alerty
-  console.log("[AlertsPanel] alerts:", alerts);
-  if (!alerts || alerts.length === 0) return null;
+  const hasExceeded = alerts.some((a) => a.alertType === "exceeded_threshold");
+  const inlineAlerts = alerts.filter((a) => {
+    if (a.type === "error") return false;
+    if (a.alertType === "exceeded_threshold") return false;
+    if (a.alertType === "approaching_threshold" && hasExceeded) return false;
+    return true;
+  });
+
   return (
-    <div className="flex flex-col gap-1 mt-2" aria-live="polite">
-      {alerts.map((alert) => (
-        <div key={alert.id} className="flex items-center gap-2 p-2 rounded bg-yellow-100 text-yellow-900">
-          <span className="font-bold">{alert.alert_type}</span>
-          <span className="text-xs">BAC: {alert.bac_at_alert?.toFixed(3)}‰</span>
-          <span className="text-xs">o {new Date(alert.triggered_at).toLocaleTimeString()}</span>
-        </div>
+    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 max-w-xs">
+      {inlineAlerts.map((alert) => (
+        <InlineError key={alert.id} message={alert.message} onClose={() => removeAlert(alert.id)} />
       ))}
     </div>
   );
-}
-
-const AlertsPanel = React.memo(AlertsPanelComponent);
-AlertsPanel.displayName = "AlertsPanel";
-
-export default AlertsPanel;
+};

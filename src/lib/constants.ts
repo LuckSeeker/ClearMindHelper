@@ -9,6 +9,8 @@ export const WIDMARK_CONSTANTS = {
   /** Ratio of threshold for "approaching" status (e.g. 0.9 = 90%) */
   APPROACHING_THRESHOLD_RATIO: 0.9,
 } as const;
+// Cooldown (ms) for exceeded_threshold alert reappearance
+export const EXCEEDED_THRESHOLD_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 // Domyślny próg BAC (‰) dla nowych użytkowników
 export const DEFAULT_THRESHOLD_BAC = 1.0;
 
