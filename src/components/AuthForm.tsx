@@ -1,90 +1,58 @@
-import React from "react";
+import React, { useState } from "react";
 import { EmailInput } from "./EmailInput";
 import { PasswordInput } from "./PasswordInput";
-import { ErrorMessage } from "./ErrorMessage";
 import { SubmitButton } from "./SubmitButton";
 import { SwitchAuthLink } from "./SwitchAuthLink";
-import { useAuthForm } from "./hooks/useAuthForm";
+import { ErrorMessage } from "./ErrorMessage";
 
-export type AuthMode = "login" | "register";
+export type AuthMode = "login" | "register" | "reset";
 
 interface AuthFormProps {
   mode: AuthMode;
 }
 
 const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
-  const {
-    email,
-    password,
-    errors,
-    loading,
-    apiError,
-    setApiError,
-    handleEmailChange,
-    handlePasswordChange,
-    validate,
-    canSubmit,
-  } = useAuthForm();
+  // UI-only state
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const emailRef = React.useRef<HTMLInputElement>(null);
-  const passwordRef = React.useRef<HTMLInputElement>(null);
-  const errorMsgRef = React.useRef<HTMLDivElement>(null);
+  const isLogin = mode === "login";
+  const isRegister = mode === "register";
+  const isReset = mode === "reset";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setApiError(undefined);
-    if (!validate()) {
-      // focus na pierwszym błędnym polu
-      if (errors.email && emailRef.current) {
-        emailRef.current.focus();
-      } else if (errors.password && passwordRef.current) {
-        passwordRef.current.focus();
-      }
-      return;
-    }
-    try {
-      const endpoint = mode === "login" ? "/api/login" : "/api/register";
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      if (!res.ok) {
-        let errorMsg = "Wystąpił błąd. Spróbuj ponownie.";
-        if (res.status === 401) errorMsg = "Nieprawidłowy e-mail lub hasło.";
-        if (res.status === 409) errorMsg = "Użytkownik o tym e-mailu już istnieje.";
-        try {
-          const data = await res.json();
-          if (data && data.message) errorMsg = data.message;
-        } catch {
-          // ignorujemy błąd parsowania JSON odpowiedzi
-        }
-        setApiError(errorMsg);
-        // focus na ErrorMessage po błędzie globalnym
-        setTimeout(() => {
-          if (errorMsgRef.current) errorMsgRef.current.focus();
-        }, 0);
-        return;
-      }
-      // Sukces: przekierowanie do strony głównej
-      window.location.href = "/";
-    } catch {
-      setApiError("Błąd sieci. Spróbuj ponownie.");
-      setTimeout(() => {
-        if (errorMsgRef.current) errorMsgRef.current.focus();
-      }, 0);
-    }
+    setLoading(true);
+    // No-op: backend logic will be added later
+    setTimeout(() => {
+      setLoading(false);
+      setError(null);
+    }, 800);
   };
 
   return (
-    <form className="w-full flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
-      <EmailInput value={email} onChange={handleEmailChange} error={errors.email} inputRef={emailRef} />
-      <PasswordInput value={password} onChange={handlePasswordChange} error={errors.password} inputRef={passwordRef} />
-      <ErrorMessage message={apiError} ariaLive ref={errorMsgRef} />
-      <SubmitButton disabled={!canSubmit} loading={loading}>
-        {mode === "login" ? "Zaloguj się" : "Zarejestruj się"}
+    <form className="space-y-6 w-full max-w-sm mx-auto" onSubmit={handleSubmit}>
+      <h2 className="text-2xl font-bold text-center mb-2">
+        {isLogin && "Logowanie"}
+        {isRegister && "Rejestracja"}
+        {isReset && "Odzyskiwanie hasła"}
+      </h2>
+      {error && <ErrorMessage message={error} />}
+      <EmailInput value={email} onChange={setEmail} />
+      {!isReset && <PasswordInput value={password} onChange={setPassword} />}
+      <SubmitButton loading={loading}>
+        {isLogin && "Zaloguj się"}
+        {isRegister && "Zarejestruj się"}
+        {isReset && "Wyślij link resetujący"}
       </SubmitButton>
-      <SwitchAuthLink mode={mode} />
+      <div className="flex justify-between text-sm mt-2">
+        {isLogin && <SwitchAuthLink to="/register">Nie masz konta?</SwitchAuthLink>}
+        {isLogin && <SwitchAuthLink to="/reset-password">Zapomniałeś hasła?</SwitchAuthLink>}
+        {isRegister && <SwitchAuthLink to="/login">Masz już konto?</SwitchAuthLink>}
+        {isReset && <SwitchAuthLink to="/login">Powrót do logowania</SwitchAuthLink>}
+      </div>
     </form>
   );
 };

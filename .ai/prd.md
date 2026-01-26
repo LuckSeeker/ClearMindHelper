@@ -65,6 +65,7 @@ Wszystkie historyjki zawierają testowalne kryteria akceptacji. ID są unikalne 
   - Kryteria akceptacji:
     - Logowanie zwraca token sesji lub stan zalogowanego użytkownika.
     - Nieprawidłowe dane powodują jednoznaczny błąd (401).
+    - Do funkcjonalności aplikacji powinni mieć dostęp tylko zalogowani użytkownicy.
 
 - US-003
   - Tytuł: Uzupełnienie profilu użytkownika
