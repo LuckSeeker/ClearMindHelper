@@ -1,6 +1,7 @@
 ---
 import "../styles/global.css";
 import Framework from "../components/Framework.tsx";
+import LogoutButton from "@/components/LogoutButton";
 
 interface Props {
   title?: string;
@@ -23,6 +24,7 @@ const { title = "10x Astro Starter" } = Astro.props;
   <body>
     <!-- Framework (React) wraps the app for global notifications -->
     <Framework>
+      <!-- Przyciski globalne (np. wyloguj) tylko na wybranych stronach -->
       <slot />
     </Framework>
   </body>

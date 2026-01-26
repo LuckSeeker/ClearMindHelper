@@ -7,6 +7,8 @@ import ThresholdCard from "./ThresholdCard";
 import ThresholdHistoryTable from "./ThresholdHistoryTable.tsx";
 import ThresholdChangeModal from "./ThresholdChangeModal";
 
+import LogoutButton from "./LogoutButton";
+
 const ProfilePage: React.FC = () => {
   // Custom hooks for API integration
   const {
@@ -95,6 +97,10 @@ const ProfilePage: React.FC = () => {
 
   return (
     <main className="max-w-2xl mx-auto py-8 px-4" role="main">
+      {/* Logout Button (visible only on /profile) */}
+      <div className="flex justify-end mb-6">
+        <LogoutButton />
+      </div>
       {/* Global error message */}
       {globalErrorMsg && (
         <div
