@@ -22,11 +22,11 @@
  */
 
 import type { APIRoute } from "astro";
-import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
+
 import { PartyIdParamSchema, ClosePartySchema } from "../../../../lib/validation/party.validation";
 import { closeParty } from "../../../../lib/services/party.service";
 import { logError, logInfo } from "../../../../lib/logger";
-import { createErrorResponse } from "../../../../lib/api-helpers";
+import { createErrorResponse, getUserIdFromSupabase } from "../../../../lib/api-helpers";
 
 // Disable prerendering for this API route
 export const prerender = false;
@@ -46,9 +46,10 @@ export const PATCH: APIRoute = async ({ params, request, locals }) => {
       return createErrorResponse({ code: "INTERNAL_SERVER_ERROR", message: "Database connection not available" }, 500);
     }
 
-    // DEVELOPMENT MODE: Use default user ID instead of authentication
-    // TODO: Replace with proper JWT authentication
-    const userId = DEFAULT_USER_ID;
+    // Get authenticated user id from Supabase session (via helper)
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
 
     // Step 2: Validate party ID parameter
     const paramsValidation = PartyIdParamSchema.safeParse({ id: params.id });

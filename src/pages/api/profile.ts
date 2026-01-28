@@ -39,7 +39,7 @@
 
 import type { APIRoute } from "astro";
 
-import { DEFAULT_USER_ID } from "../../db/supabase.client";
+// import { DEFAULT_USER_ID } from "../../db/supabase.client";
 import { logError } from "../../lib/logger";
 import { getProfile, upsertProfile } from "../../lib/services/profile.service";
 import { UpdateProfileSchema } from "../../lib/validation/profile.validation";
@@ -49,6 +49,7 @@ import {
   createSuccessResponse,
   CommonErrors,
   validateSupabaseClient,
+  getUserIdFromSupabase,
 } from "../../lib/api-helpers";
 import type { UserProfileDTO } from "../../types";
 
@@ -59,10 +60,11 @@ export const GET: APIRoute = async ({ locals }) => {
     const supabaseResult = validateSupabaseClient(locals.supabase);
     if (!supabaseResult.success) return supabaseResult.response;
     const supabase = supabaseResult.value;
-
-    const userId = DEFAULT_USER_ID;
+    // Get authenticated user id from Supabase session
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
     const profile = await getProfile(userId, supabase);
-
     if (!profile) {
       return new Response(
         JSON.stringify({
@@ -74,7 +76,6 @@ export const GET: APIRoute = async ({ locals }) => {
         { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
-
     return new Response(JSON.stringify(profile satisfies UserProfileDTO), {
       status: 200,
       headers: {
@@ -94,17 +95,16 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     const supabaseResult = validateSupabaseClient(locals.supabase);
     if (!supabaseResult.success) return supabaseResult.response;
     const supabase = supabaseResult.value;
-
-    const userId = DEFAULT_USER_ID;
-
+    // Get authenticated user id from Supabase session
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
     const bodyResult = await parseJsonBody(request, false);
     if (!bodyResult.success) return bodyResult.response;
-
     const validationResult = UpdateProfileSchema.safeParse(bodyResult.value);
     if (!validationResult.success) {
       return createValidationErrorResponse(validationResult.error);
     }
-
     const profile = await upsertProfile(userId, validationResult.data, supabase);
     return createSuccessResponse(profile);
   } catch (error) {

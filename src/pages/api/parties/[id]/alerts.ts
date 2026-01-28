@@ -7,8 +7,8 @@ import {
   validateSupabaseClient,
   CommonErrors,
   createSuccessResponse,
+  getUserIdFromSupabase,
 } from "../../../../lib/api-helpers";
-import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
 
 export const prerender = false;
 
@@ -18,9 +18,10 @@ export const GET: APIRoute = async ({ params, locals }) => {
   if (!supabaseResult.success) return supabaseResult.response;
   const supabase = supabaseResult.value;
 
-  // DEVELOPMENT MODE: Użyj DEFAULT_USER_ID
-  // TODO: Zastąpić prawdziwą autoryzacją JWT
-  const userId = DEFAULT_USER_ID;
+  // Get authenticated user id from Supabase session
+  const userIdResult = await getUserIdFromSupabase(supabase);
+  if (!userIdResult.success) return userIdResult.response;
+  const userId = userIdResult.value;
 
   try {
     // 2. Walidacja partyId analogicznie do drinks.ts

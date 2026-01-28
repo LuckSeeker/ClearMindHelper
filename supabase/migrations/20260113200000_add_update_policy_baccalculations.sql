@@ -6,13 +6,14 @@
 -- Development policy for baccalculations UPDATE
 -- ==============================================================================
 
--- policy: allow update for default dev user
-create policy "dev: allow update baccalculations for default user"
+
+-- policy: allow update for authenticated user
+create policy "authenticated: allow update baccalculations for own user"
   on baccalculations for update
-  to anon, authenticated
+  to authenticated
   using (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   )
   with check (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );

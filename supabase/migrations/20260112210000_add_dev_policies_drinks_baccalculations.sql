@@ -9,57 +9,63 @@
 -- WARNING: These policies bypass authentication for DEFAULT_USER_ID
 -- ONLY use in local development environment
 
--- policy: allow insert for default dev user
-create policy "dev: allow insert drinks for default user"
+
+-- policy: allow insert for authenticated user
+create policy "authenticated: allow insert drinks for own user"
   on drinks for insert
-  to anon, authenticated
+  to authenticated
   with check (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );
 
--- policy: allow select for default dev user
-create policy "dev: allow select drinks for default user"
+
+-- policy: allow select for authenticated user
+create policy "authenticated: allow select drinks for own user"
   on drinks for select
-  to anon, authenticated
+  to authenticated
   using (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );
 
--- policy: allow update for default dev user
-create policy "dev: allow update drinks for default user"
+
+-- policy: allow update for authenticated user
+create policy "authenticated: allow update drinks for own user"
   on drinks for update
-  to anon, authenticated
+  to authenticated
   using (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   )
   with check (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );
 
--- policy: allow delete for default dev user
-create policy "dev: allow delete drinks for default user"
+
+-- policy: allow delete for authenticated user
+create policy "authenticated: allow delete drinks for own user"
   on drinks for delete
-  to anon, authenticated
+  to authenticated
   using (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );
 
 -- ==============================================================================
 -- Development policies for baccalculations table
 -- ==============================================================================
 
--- policy: allow insert for default dev user
-create policy "dev: allow insert baccalculations for default user"
+
+-- policy: allow insert for authenticated user
+create policy "authenticated: allow insert baccalculations for own user"
   on baccalculations for insert
-  to anon, authenticated
+  to authenticated
   with check (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );
 
--- policy: allow select for default dev user
-create policy "dev: allow select baccalculations for default user"
+
+-- policy: allow select for authenticated user
+create policy "authenticated: allow select baccalculations for own user"
   on baccalculations for select
-  to anon, authenticated
+  to authenticated
   using (
-    user_id = '00000000-0000-0000-0000-000000000000'::uuid
+    user_id = auth.uid()
   );

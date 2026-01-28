@@ -30,7 +30,6 @@
 
 import type { APIRoute } from "astro";
 
-import { DEFAULT_USER_ID } from "../../../../../db/supabase.client";
 import { logError } from "../../../../../lib/logger";
 import {
   parsePositiveIntParam,
@@ -40,6 +39,7 @@ import {
   createErrorResponse,
   CommonErrors,
   validateSupabaseClient,
+  getUserIdFromSupabase,
 } from "../../../../../lib/api-helpers";
 import { updateLastDrink } from "../../../../../lib/services/drink.service";
 import { UpdateDrinkSchema } from "../../../../../lib/validation/drink.validation";
@@ -57,9 +57,10 @@ export const PUT: APIRoute = async ({ request, params, locals }) => {
     }
     const supabase = supabaseResult.value;
 
-    // DEVELOPMENT MODE: Use default user ID instead of authentication
-    // TODO: Replace with proper JWT authentication
-    const userId = DEFAULT_USER_ID;
+    // Get authenticated user id from Supabase session (via helper)
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
 
     // Parse and validate partyId from path parameter
     const partyIdResult = parsePositiveIntParam(params.id, "partyId");

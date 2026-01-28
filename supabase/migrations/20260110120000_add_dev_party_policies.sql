@@ -3,38 +3,44 @@
 -- Date: 2026-01-10
 -- NOTE: This migration is for development only and should be removed before production
 
--- Policy: Allow anonymous SELECT access to default test user's parties for development
-CREATE POLICY "dev_allow_anon_select_default_user_parties"
+
+-- Policy: Allow authenticated user to select own parties
+CREATE POLICY "authenticated_allow_select_own_parties"
   ON parties FOR SELECT
-  TO anon
-  USING (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  USING (user_id = auth.uid());
 
--- Policy: Allow anonymous INSERT access to default test user's parties for development
-CREATE POLICY "dev_allow_anon_insert_default_user_parties"
+
+-- Policy: Allow authenticated user to insert own parties
+CREATE POLICY "authenticated_allow_insert_own_parties"
   ON parties FOR INSERT
-  TO anon
-  WITH CHECK (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
--- Policy: Allow anonymous UPDATE access to default test user's parties for development
-CREATE POLICY "dev_allow_anon_update_default_user_parties"
+
+-- Policy: Allow authenticated user to update own parties
+CREATE POLICY "authenticated_allow_update_own_parties"
   ON parties FOR UPDATE
-  TO anon
-  USING (user_id = '00000000-0000-0000-0000-000000000000')
-  WITH CHECK (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
 
--- Policy: Allow anonymous DELETE access to default test user's parties for development
-CREATE POLICY "dev_allow_anon_delete_default_user_parties"
+
+-- Policy: Allow authenticated user to delete own parties
+CREATE POLICY "authenticated_allow_delete_own_parties"
   ON parties FOR DELETE
-  TO anon
-  USING (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  USING (user_id = auth.uid());
 
--- Policy: Allow anonymous access to events for default test user for development
-CREATE POLICY "dev_allow_anon_insert_default_user_events"
+
+-- Policy: Allow authenticated user to insert own events
+CREATE POLICY "authenticated_allow_insert_own_events"
   ON events FOR INSERT
-  TO anon
-  WITH CHECK (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY "dev_allow_anon_select_default_user_events"
+
+CREATE POLICY "authenticated_allow_select_own_events"
   ON events FOR SELECT
-  TO anon
-  USING (user_id = '00000000-0000-0000-0000-000000000000');
+  TO authenticated
+  USING (user_id = auth.uid());

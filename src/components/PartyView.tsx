@@ -13,11 +13,8 @@ import AddEditDrinkModal from "./AddEditDrinkModal.tsx";
 import { useParty } from "./hooks/useParty";
 import { useAlertsPolling } from "./hooks/useAlertsPolling";
 
-import type { DrinkWithBACDTO, DrinkDTO, UserThresholdDTO, PartyDetailDTO } from "../types";
+import type { DrinkWithBACDTO, DrinkDTO, PartyDetailDTO } from "../types";
 import type { AddDrinkFormModel } from "./AddEditDrinkModal";
-import { logError } from "@/lib/logger.ts";
-import { getCurrentThreshold } from "../lib/services/threshold.service";
-import { supabaseClient, DEFAULT_USER_ID } from "../db/supabase.client";
 import { DEFAULT_THRESHOLD_BAC, WIDMARK_CONSTANTS } from "../lib/constants";
 
 const PartyView: React.FC = () => {
@@ -33,19 +30,8 @@ const PartyView: React.FC = () => {
   // Wywołanie hooka polling, pobieramy ref do natychmiastowego fetchowania alertów
   const alertsPollingRef = useAlertsPolling(party?.id ?? null);
 
-  // Stan na aktualny próg użytkownika
-  const [userThreshold, setUserThreshold] = React.useState<UserThresholdDTO | null>(null);
-  React.useEffect(() => {
-    async function fetchThreshold() {
-      try {
-        const threshold = await getCurrentThreshold(DEFAULT_USER_ID, supabaseClient);
-        setUserThreshold(threshold);
-      } catch (e) {
-        logError("Błąd pobierania progu użytkownika", e);
-      }
-    }
-    fetchThreshold();
-  }, []);
+  // Próg użytkownika pobieraj tylko z party.current_threshold przekazanego przez API
+  const threshold = party?.current_threshold ?? DEFAULT_THRESHOLD_BAC;
 
   // Map backend BACCalculationDTO to CurrentBACResponseDTO for BACIndicator
   // Zawsze wyliczaj threshold_status na podstawie aktualnych wartości BAC i progu
@@ -54,7 +40,6 @@ const PartyView: React.FC = () => {
     const bacValue =
       currentBAC?.current_bac ??
       (typeof party.current_bac?.calculated_bac === "number" ? party.current_bac.calculated_bac : 0);
-    const threshold = userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC;
     const approachingValue = WIDMARK_CONSTANTS.APPROACHING_THRESHOLD_RATIO * threshold;
     let threshold_status: "exceeded" | "approaching" | "safe" = "safe";
     if (threshold === 0) {
@@ -304,7 +289,6 @@ const PartyView: React.FC = () => {
         onCancel={() => {
           setBlackoutModalOpen(false);
           // Po zamknięciu blackout modal, jeśli max BAC > threshold, pokaż threshold modal
-          const threshold = userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC;
           if ((maxBACDuringParty ?? 0) > threshold) {
             setThresholdModalOpen(true);
           } else {
@@ -315,10 +299,10 @@ const PartyView: React.FC = () => {
       <ThresholdExceededModal
         open={thresholdModalOpen}
         maxBAC={maxBACDuringParty ?? 0}
-        threshold={userThreshold?.threshold_bac ?? DEFAULT_THRESHOLD_BAC}
+        threshold={threshold}
         onConfirm={async () => {
           // Zaktualizuj próg użytkownika do maxBAC
-          if (maxBACDuringParty && userThreshold) {
+          if (maxBACDuringParty) {
             await fetch(`/api/thresholds/current`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },

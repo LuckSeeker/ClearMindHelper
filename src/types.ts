@@ -141,6 +141,8 @@ export interface PartyDetailDTO extends PartyDTO {
   active_alerts: AlertDTO[];
   /** All alerts for this party */
   all_alerts: AlertDTO[];
+  /** User's current BAC threshold for this party */
+  current_threshold: number;
 }
 
 /**

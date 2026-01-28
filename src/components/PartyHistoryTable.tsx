@@ -30,7 +30,6 @@ const PartyHistoryTable: React.FC<PartyHistoryTableProps> = React.memo(({ partie
         <thead>
           <tr className="bg-neutral-100 dark:bg-neutral-800">
             <th className="px-3 py-2 text-left">Data</th>
-            <th className="px-3 py-2 text-left">Status</th>
             <th className="px-3 py-2 text-left">Suma alkoholu</th>
             <th className="px-3 py-2 text-left">Max BAC</th>
             <th className="px-3 py-2 text-left">Blackout</th>
@@ -49,7 +48,6 @@ const PartyHistoryTable: React.FC<PartyHistoryTableProps> = React.memo(({ partie
               <td className="px-3 py-2 whitespace-nowrap">
                 {party.started_at ? new Date(party.started_at).toLocaleDateString() : "-"}
               </td>
-              <td className="px-3 py-2 whitespace-nowrap">{party.status}</td>
               <td className="px-3 py-2 whitespace-nowrap">{party.total_ml_consumed} ml</td>
               <td className="px-3 py-2 whitespace-nowrap">
                 {party.bac_estimate_max != null ? `${party.bac_estimate_max.toFixed(2)} ‰` : "-"}

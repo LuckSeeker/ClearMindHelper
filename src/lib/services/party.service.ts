@@ -546,7 +546,23 @@ export async function getPartyDetails(
     currentBAC = lastDrinkWithBAC.bac_calculation;
   }
 
-  // Step 8: Assemble PartyDetailDTO
+  // Step 8: Fetch current user threshold
+  let currentThreshold = null;
+  try {
+    const { data: thresholdData, error: thresholdError } = await supabase
+      .from("userthresholds")
+      .select("threshold_bac")
+      .eq("user_id", userId)
+      .eq("is_current", true)
+      .maybeSingle();
+    if (!thresholdError && thresholdData && typeof thresholdData.threshold_bac === "number") {
+      currentThreshold = thresholdData.threshold_bac;
+    }
+  } catch (e) {
+    logError("Failed to fetch current user threshold", { userId, partyId, error: e });
+  }
+
+  // Step 9: Assemble PartyDetailDTO
   const partyDetail: PartyDetailDTO = {
     id: party.id,
     user_id: party.user_id,
@@ -565,6 +581,7 @@ export async function getPartyDetails(
     current_bac: currentBAC,
     active_alerts: allAlerts.filter((a) => a.is_active),
     all_alerts: allAlerts,
+    current_threshold: currentThreshold ?? 0,
   };
 
   logInfo("Party details retrieved successfully", {

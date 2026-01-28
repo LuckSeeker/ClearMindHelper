@@ -6,27 +6,31 @@
 -- development policy for userthresholds
 -- ==============================================================================
 
--- policy: allow default dev user to select thresholds
-create policy "dev user can select thresholds"
+
+-- policy: allow select for authenticated user
+create policy "authenticated: allow select userthresholds for own user"
   on userthresholds for select
-  to anon, authenticated
-  using (user_id = '00000000-0000-0000-0000-000000000000'::uuid);
+  to authenticated
+  using (user_id = auth.uid());
 
--- policy: allow default dev user to insert thresholds
-create policy "dev user can insert thresholds"
+
+-- policy: allow insert for authenticated user
+create policy "authenticated: allow insert userthresholds for own user"
   on userthresholds for insert
-  to anon, authenticated
-  with check (user_id = '00000000-0000-0000-0000-000000000000'::uuid);
+  to authenticated
+  with check (user_id = auth.uid());
 
--- policy: allow default dev user to update thresholds
-create policy "dev user can update thresholds"
+
+-- policy: allow update for authenticated user
+create policy "authenticated: allow update userthresholds for own user"
   on userthresholds for update
-  to anon, authenticated
-  using (user_id = '00000000-0000-0000-0000-000000000000'::uuid)
-  with check (user_id = '00000000-0000-0000-0000-000000000000'::uuid);
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
 
--- policy: allow default dev user to delete thresholds
-create policy "dev user can delete thresholds"
+
+-- policy: allow delete for authenticated user
+create policy "authenticated: allow delete userthresholds for own user"
   on userthresholds for delete
-  to anon, authenticated
-  using (user_id = '00000000-0000-0000-0000-000000000000'::uuid);
+  to authenticated
+  using (user_id = auth.uid());

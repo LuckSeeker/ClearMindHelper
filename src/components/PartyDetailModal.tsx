@@ -37,6 +37,7 @@ const PartyDetailModal: React.FC<PartyDetailModalProps> = React.memo(function Pa
             <th className="px-2 py-1 text-center">Czas</th>
             <th className="px-2 py-1 text-center">Objętość</th>
             <th className="px-2 py-1 text-center">%</th>
+            <th className="px-2 py-1 text-center">BAC</th>
           </tr>
         </thead>
         <tbody>
@@ -47,6 +48,11 @@ const PartyDetailModal: React.FC<PartyDetailModalProps> = React.memo(function Pa
               </td>
               <td className="px-2 py-1 text-center">{drink.volume_ml} ml</td>
               <td className="px-2 py-1 text-center">{drink.abv_percent}%</td>
+              <td className="px-2 py-1 text-center">
+                {drink.bac_calculation && typeof drink.bac_calculation.calculated_bac === "number"
+                  ? drink.bac_calculation.calculated_bac.toFixed(2) + " ‰"
+                  : "-"}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -96,9 +102,6 @@ const PartyDetailModal: React.FC<PartyDetailModalProps> = React.memo(function Pa
             <div>
               <span className="font-semibold">Data rozpoczęcia:</span>{" "}
               {partyDetail.started_at ? new Date(partyDetail.started_at).toLocaleString() : "-"}
-            </div>
-            <div>
-              <span className="font-semibold">Status:</span> {partyDetail.status}
             </div>
             <div>
               <span className="font-semibold">Snapshot profilu:</span>

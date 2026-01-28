@@ -1,4 +1,34 @@
 /**
+ * Gets authenticated user ID from Supabase client (server-side)
+ * Returns ParseResult with userId or 401 error response
+ *
+ * @param supabase - Supabase client instance
+ * @returns ParseResult with userId string or error Response
+ *
+ * @example
+ * ```typescript
+ * const userIdResult = await getUserIdFromSupabase(supabase);
+ * if (!userIdResult.success) return userIdResult.response;
+ * const userId = userIdResult.value;
+ * ```
+ */
+export type ParseResult<T> = { success: true; value: T } | { success: false; response: Response };
+
+export async function getUserIdFromSupabase(supabase: SupabaseClient): Promise<ParseResult<string>> {
+  // Use getUser() for secure user authentication (recommended by Supabase)
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return {
+      success: false,
+      response: CommonErrors.unauthorized(),
+    };
+  }
+  return { success: true, value: user.id };
+}
+/**
  * API Helper Functions
  *
  * Reusable utilities for API endpoint handlers including:
@@ -9,7 +39,7 @@
 
 import type { APIError } from "../types";
 import { logWarning, logError, logInfo } from "./logger";
-import { DEFAULT_USER_ID, type SupabaseClient } from "../db/supabase.client";
+import { type SupabaseClient } from "../db/supabase.client";
 
 // ============================================================================
 // Parameter Validation Helpers
@@ -17,9 +47,9 @@ import { DEFAULT_USER_ID, type SupabaseClient } from "../db/supabase.client";
 
 /**
  * Result of parameter parsing - either success with value or error response
- */
 export type ParseResult<T> = { success: true; value: T } | { success: false; response: Response };
 
+/**
 /**
  * Validates Supabase client availability
  * Returns ParseResult with client or 500 error response
@@ -130,43 +160,6 @@ export async function parseJsonBody(request: Request, allowEmpty = true): Promis
       ),
     };
   }
-}
-
-/**
- * Gets authenticated user ID (currently uses DEFAULT_USER_ID in dev mode)
- * Returns ParseResult with userId or 401 error response
- *
- * @param locals - Astro locals object (currently unused in dev mode)
- * @returns ParseResult with userId string or error Response
- *
- * @example
- * const userIdResult = getAuthenticatedUserId(locals);
- * if (!userIdResult.success) return userIdResult.response;
- * const userId = userIdResult.value;
- *
- * @todo Replace with proper JWT authentication from locals.user
- */
-export function getAuthenticatedUserId(): ParseResult<string> {
-  // DEVELOPMENT MODE: Use default user ID instead of authentication
-  // TODO: Replace with proper JWT authentication
-  const userId = DEFAULT_USER_ID;
-  // In production, add locals parameter: (locals: unknown) and use: const userId = (locals as any).user?.id;
-
-  if (!userId) {
-    logWarning("Unauthorized access attempt - no user ID");
-    return {
-      success: false,
-      response: createErrorResponse(
-        {
-          code: "UNAUTHORIZED",
-          message: "Missing or invalid authentication token",
-        },
-        401
-      ),
-    };
-  }
-
-  return { success: true, value: userId };
 }
 
 /**
@@ -377,6 +370,18 @@ export function createValidationErrorResponse(
  * Standard error responses that can be reused across endpoints
  */
 export const CommonErrors = {
+  /**
+   * 401 - Unauthorized (missing or invalid authentication)
+   */
+  unauthorized(message = "Missing or invalid authentication token"): Response {
+    return createErrorResponse(
+      {
+        code: "UNAUTHORIZED",
+        message,
+      },
+      401
+    );
+  },
   /**
    * 500 - Database error
    */

@@ -8,7 +8,7 @@ import type {
   DrinkValidationWarning,
   ClosePartyCommand,
 } from "../../types";
-import { DEFAULT_USER_ID } from "../../db/supabase.client";
+
 import { DEFAULT_THRESHOLD_BAC } from "../../lib/constants";
 import { logError } from "../../lib/logger";
 import React from "react";
@@ -140,7 +140,7 @@ export function useParty() {
       const res = await fetch("/api/parties", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: DEFAULT_USER_ID, started_at: new Date().toISOString() }),
+        body: JSON.stringify({ started_at: new Date().toISOString() }),
       });
       if (!res.ok) throw new Error("Nie udało się rozpocząć imprezy");
       const party: PartyDetailDTO = await res.json();
@@ -235,7 +235,7 @@ export function useParty() {
       const res = await fetch(`/api/parties/${id}/blackout`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: DEFAULT_USER_ID }),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error("Nie udało się oznaczyć blackout");
       await res.json();
@@ -249,7 +249,7 @@ export function useParty() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         party_id: id,
-        user_id: DEFAULT_USER_ID,
+        user_id: "", // userId nie jest już znany na froncie
       };
       dispatch({ type: "SET_ALERTS", payload: [blackoutAlert] });
       dispatch({ type: "SET_ERROR", payload: null });

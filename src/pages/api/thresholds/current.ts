@@ -9,7 +9,7 @@ import { updateAlertsAfterThresholdChange } from "../../../lib/services/alert.se
 import type { UserThresholdDTO, APIError, CurrentThresholdResponseDTO } from "../../../types";
 import { logError, logInfo } from "../../../lib/logger";
 import {
-  getAuthenticatedUserId,
+  getUserIdFromSupabase,
   validateSupabaseClient,
   createValidationErrorResponse,
   CommonErrors,
@@ -24,7 +24,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
   const supabase = supabaseResult.value;
 
   // 2. Autoryzacja
-  const userIdResult = getAuthenticatedUserId();
+  const userIdResult = await getUserIdFromSupabase(locals.supabase);
   if (!userIdResult.success) return userIdResult.response;
   const user_id = userIdResult.value;
 
@@ -61,7 +61,7 @@ export const GET: APIRoute = async ({ locals }) => {
   const supabase = supabaseResult.value;
 
   // 2. Get authenticated user ID
-  const userIdResult = getAuthenticatedUserId();
+  const userIdResult = await getUserIdFromSupabase(locals.supabase);
   if (!userIdResult.success) return userIdResult.response;
   const userId = userIdResult.value;
 

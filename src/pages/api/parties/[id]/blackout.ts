@@ -32,8 +32,8 @@ import type { APIRoute } from "astro";
 import { PartyIdParamSchema } from "../../../../lib/validation/party.validation";
 import { markBlackout } from "../../../../lib/services/party.service";
 import { logError, logInfo } from "../../../../lib/logger";
-import { createErrorResponse } from "../../../../lib/api-helpers";
-import { DEFAULT_USER_ID } from "../../../../db/supabase.client";
+import { createErrorResponse, getUserIdFromSupabase } from "../../../../lib/api-helpers";
+
 import { validateSupabaseClient } from "../../../../lib/api-helpers";
 
 export const prerender = false;
@@ -53,9 +53,11 @@ export const PATCH: APIRoute = async ({ params, locals }) => {
   if (!supabaseResult.success) return supabaseResult.response;
   const supabase = supabaseResult.value;
 
-  // DEVELOPMENT MODE: Use default user ID instead of authentication
-  // TODO: Replace with proper JWT authentication
-  const userId = DEFAULT_USER_ID;
+  // Get authenticated user id from Supabase session
+  const userIdResult = await getUserIdFromSupabase(supabase);
+  if (!userIdResult.success) return userIdResult.response;
+  const userId = userIdResult.value;
+
   try {
     // Step 2: Validate path parameter
     const paramsValidation = PartyIdParamSchema.safeParse(params);

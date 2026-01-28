@@ -927,7 +927,8 @@ export async function updateLastDrink(
     throw new Error(`Database error: ${updateError.message}`);
   }
 
-  // 8. Recalculate BAC for all drinks in the party
+  // 8. Recalculate BAC only for the edited (last) drink
+  // BAC at the time of this drink (all drinks up to and including this one)
   const { data: allDrinksEdit, error: allDrinksEditError } = await supabase
     .from("drinks")
     .select("id, volume_ml, abv_percent, consumed_at")
@@ -937,53 +938,55 @@ export async function updateLastDrink(
     logError("Failed to fetch all drinks for BACAccurate (edit)", { partyId, error: allDrinksEditError.message });
     throw new Error(`Database error: ${allDrinksEditError.message}`);
   }
+  // Znajdź drink o id = drinkId
+  const editedDrink = (allDrinksEdit || []).find((d) => d.id === drinkId);
+  if (!editedDrink) {
+    logError("Edited drink not found in allDrinksEdit", { drinkId });
+    throw new Error("Edited drink not found");
+  }
+  // BAC dla tego drinka: wszystkie drinki do tego momentu (włącznie)
+  const drinksUpToThis = (allDrinksEdit || []).filter(
+    (d) => new Date(d.consumed_at) <= new Date(editedDrink.consumed_at)
+  );
+  const bac = calculateBACAccurate(drinksUpToThis, profileSnapshot, new Date(editedDrink.consumed_at));
+  const partyStart = new Date(party.started_at);
+  const timeElapsedMinutes = Math.round(
+    (new Date(editedDrink.consumed_at).getTime() - partyStart.getTime()) / (1000 * 60)
+  );
+  const timeElapsedHours = timeElapsedMinutes / 60;
+  const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
 
+  const { data: updatedBac, error: bacUpdateError } = await supabase
+    .from("baccalculations")
+    .update({
+      calculated_bac: bac,
+      metabolized_alcohol_g: metabolizedAlcohol,
+      calculation_timestamp: new Date().toISOString(),
+      time_since_first_drink_minutes: timeElapsedMinutes,
+    })
+    .eq("drink_id", editedDrink.id)
+    .select()
+    .maybeSingle();
+
+  if (bacUpdateError) {
+    logError("Failed to update BAC calculation", { drinkId: editedDrink.id, error: bacUpdateError.message });
+    throw new Error(`Database error: ${bacUpdateError.message}`);
+  }
+  // Fix type: ensure calculation_timestamp and created_at are string, never null
   let bacCalculation: BACCalculationDTO | null = null;
   let calculatedBAC: number | null = null;
-  // Removed unused variable now
-  for (const drink of allDrinksEdit || []) {
-    // BAC at the time of this drink
-    const drinksUpToThis = (allDrinksEdit || []).filter((d) => new Date(d.consumed_at) <= new Date(drink.consumed_at));
-    const bac = calculateBACAccurate(drinksUpToThis, profileSnapshot, new Date(drink.consumed_at));
-    const partyStart = new Date(party.started_at);
-    const timeElapsedMinutes = Math.round((new Date(drink.consumed_at).getTime() - partyStart.getTime()) / (1000 * 60));
-    const timeElapsedHours = timeElapsedMinutes / 60;
-    const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
-
-    const { data: updatedBac, error: bacUpdateError } = await supabase
-      .from("baccalculations")
-      .update({
-        calculated_bac: bac,
-        metabolized_alcohol_g: metabolizedAlcohol,
-        calculation_timestamp: new Date(drink.consumed_at).toISOString(),
-        time_since_first_drink_minutes: timeElapsedMinutes,
-      })
-      .eq("drink_id", drink.id)
-      .select()
-      .maybeSingle();
-
-    if (bacUpdateError) {
-      logError("Failed to update BAC calculation", { drinkId: drink.id, error: bacUpdateError.message });
-      throw new Error(`Database error: ${bacUpdateError.message}`);
-    }
-    // Save the BAC calculation for the edited drink to return in response
-    if (drink.id === drinkId) {
-      // Fix type: ensure calculation_timestamp and created_at are string, never null
-      if (updatedBac) {
-        bacCalculation = {
-          ...updatedBac,
-          calculation_timestamp: updatedBac.calculation_timestamp ?? new Date(drink.consumed_at).toISOString(),
-          created_at: updatedBac.created_at ?? new Date().toISOString(),
-          user_profile_snapshot: profileSnapshot,
-        };
-        calculatedBAC = bac;
-      }
-    }
+  if (updatedBac) {
+    bacCalculation = {
+      ...updatedBac,
+      calculation_timestamp: updatedBac.calculation_timestamp ?? new Date(editedDrink.consumed_at).toISOString(),
+      created_at: updatedBac.created_at ?? new Date().toISOString(),
+      user_profile_snapshot: profileSnapshot,
+    };
+    calculatedBAC = bac;
   }
-
   if (!bacCalculation || calculatedBAC === null) {
     logError("BAC calculation not found for drink after update", { drinkId });
-    throw new Error("BAC calculation not found");
+    throw new Error("BAC calculation not found " + typeof editedDrink.id);
   }
 
   // 10. Recalculate party statistics

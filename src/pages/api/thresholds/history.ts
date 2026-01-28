@@ -2,7 +2,7 @@ import type { APIRoute } from "astro";
 import { getThresholdHistory } from "../../../lib/services/threshold.service";
 import type { ThresholdHistoryResponseDTO } from "../../../types";
 import {
-  getAuthenticatedUserId,
+  getUserIdFromSupabase,
   validateSupabaseClient,
   createValidationErrorResponse,
   createSuccessResponse,
@@ -20,7 +20,7 @@ export const GET: APIRoute = async ({ locals, request }) => {
   const supabase = supabaseResult.value;
 
   // 2. Get authenticated user ID
-  const userIdResult = getAuthenticatedUserId();
+  const userIdResult = await getUserIdFromSupabase(locals.supabase);
   if (!userIdResult.success) return userIdResult.response;
   const userId = userIdResult.value;
 

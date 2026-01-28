@@ -39,7 +39,7 @@ import {
   parsePositiveIntParam,
   createSuccessResponse,
   createErrorResponse,
-  getAuthenticatedUserId,
+  getUserIdFromSupabase,
 } from "../../../../../lib/api-helpers";
 import type { CurrentBACResponseDTO } from "../../../../../types";
 
@@ -64,7 +64,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     const partyId = partyIdResult.value;
 
     // Step 3: Get authenticated user ID
-    const userIdResult = getAuthenticatedUserId();
+    const userIdResult = await getUserIdFromSupabase(locals.supabase);
     if (!userIdResult.success) return userIdResult.response;
     const userId = userIdResult.value;
 

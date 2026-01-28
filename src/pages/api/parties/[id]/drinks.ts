@@ -62,7 +62,7 @@ import {
   createSuccessResponse,
   createErrorResponseFromThrown,
   CommonErrors,
-  getAuthenticatedUserId,
+  getUserIdFromSupabase,
   verifyPartyOwnership,
   validateSupabaseClient,
 } from "../../../../lib/api-helpers";
@@ -80,7 +80,7 @@ export const GET: APIRoute = async ({ params, url, locals }) => {
   const supabase = locals.supabase;
 
   // Step 1: Authentication check
-  const userIdResult = getAuthenticatedUserId();
+  const userIdResult = await getUserIdFromSupabase(locals.supabase);
   if (!userIdResult.success) {
     logError("Authentication failed in GET drinks", `status: ${userIdResult.response.status}`);
     return userIdResult.response;
@@ -162,7 +162,7 @@ export const POST: APIRoute = async ({ request, params, locals }) => {
     const supabase = supabaseResult.value;
 
     // Authentication check
-    const userIdResult = getAuthenticatedUserId();
+    const userIdResult = await getUserIdFromSupabase(locals.supabase);
     if (!userIdResult.success) {
       logError(
         "Authentication failed in POST drinks",

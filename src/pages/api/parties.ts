@@ -1,15 +1,31 @@
-import { getPartyList } from "../../lib/services/party.service";
-import { PartyListQuerySchema } from "../../lib/validation/party.validation";
-import type { PartyListResponseDTO } from "../../types";
+import type { APIRoute } from "astro";
+import { ERROR_CODES } from "../../lib/constants";
+import { logError, logInfo } from "../../lib/logger";
+import { getPartyList, startParty } from "../../lib/services/party.service";
+import { PartyListQuerySchema, StartPartySchema } from "../../lib/validation/party.validation";
+import {
+  parseJsonBody,
+  createValidationErrorResponse,
+  CommonErrors,
+  createErrorResponse,
+  createSuccessResponse,
+  validateSupabaseClient,
+  getUserIdFromSupabase,
+} from "../../lib/api-helpers";
+import type { PartyDTO, PartyListResponseDTO } from "../../types";
+
+export const prerender = false;
+
 export const GET: APIRoute = async ({ url, locals }) => {
   try {
     const supabaseResult = validateSupabaseClient(locals.supabase);
     if (!supabaseResult.success) return supabaseResult.response;
     const supabase = supabaseResult.value;
 
-    // DEVELOPMENT MODE: Use default user ID instead of authentication
-    // TODO: Replace with proper JWT authentication
-    const userId = DEFAULT_USER_ID;
+    // Get authenticated user id from Supabase session (via helper)
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
 
     // Parse and validate query parameters
     const searchParams = url.searchParams;
@@ -104,32 +120,16 @@ export const GET: APIRoute = async ({ url, locals }) => {
  *   - 500: Internal server error (database or unexpected error)
  */
 
-import type { APIRoute } from "astro";
-
-import { DEFAULT_USER_ID } from "../../db/supabase.client";
-import { ERROR_CODES } from "../../lib/constants";
-import { logError, logInfo } from "../../lib/logger";
-import { startParty } from "../../lib/services/party.service";
-import { StartPartySchema } from "../../lib/validation/party.validation";
-import {
-  parseJsonBody,
-  createValidationErrorResponse,
-  CommonErrors,
-  createErrorResponse,
-  createSuccessResponse,
-  validateSupabaseClient,
-} from "../../lib/api-helpers";
-import type { PartyDTO } from "../../types";
-
-export const prerender = false;
-
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     const supabaseResult = validateSupabaseClient(locals.supabase);
     if (!supabaseResult.success) return supabaseResult.response;
     const supabase = supabaseResult.value;
 
-    const userId = DEFAULT_USER_ID;
+    // Get authenticated user id from Supabase session (via helper)
+    const userIdResult = await getUserIdFromSupabase(supabase);
+    if (!userIdResult.success) return userIdResult.response;
+    const userId = userIdResult.value;
 
     const bodyResult = await parseJsonBody(request);
     if (!bodyResult.success) return bodyResult.response;
