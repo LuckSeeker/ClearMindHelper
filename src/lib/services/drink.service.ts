@@ -986,7 +986,7 @@ export async function updateLastDrink(
   }
   if (!bacCalculation || calculatedBAC === null) {
     logError("BAC calculation not found for drink after update", { drinkId });
-    throw new Error("BAC calculation not found " + typeof editedDrink.id);
+    throw new Error("BAC calculation not found");
   }
 
   // 10. Recalculate party statistics

@@ -52,15 +52,23 @@ ClearMindHelper addresses a critical gap in personal safety awareness: users oft
 
 ### Development Tools
 
+- **Vitest** - Unit testing framework for TypeScript/JavaScript
+- **Playwright** - End-to-end (E2E) testing framework for browser automation
 - **ESLint** - Code quality and style consistency
 - **Prettier** - Code formatting
 - **TypeScript ESLint** - TypeScript-specific linting
 - **Husky** - Git hooks for automated checks
 
+
 ### DevOps & Hosting
 
 - **GitHub Actions** - CI/CD pipeline
 - **DigitalOcean** - Hosting via Docker containers
+
+### Testing
+
+- **Vitest** - Unit testing
+- **Playwright** - End-to-end (E2E) testing
 
 ## Getting Started Locally
 

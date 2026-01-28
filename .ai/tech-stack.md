@@ -17,3 +17,8 @@ CI/CD i Hosting:
 
 - Github Actions do tworzenia pipeline’ów CI/CD
 - DigitalOcean do hostowania aplikacji za pośrednictwem obrazu docker
+
+Testowanie:
+
+- Vitest – testy jednostkowe funkcji i logiki biznesowej (np. bac.service.ts)
+- Playwright – testy end-to-end (E2E) ścieżek użytkownika i interfejsu
