@@ -4,6 +4,7 @@ import { usePartyDetail } from "./hooks/usePartyDetail";
 import PartyHistoryTable from "./PartyHistoryTable.tsx";
 import PartyDetailModal from "./PartyDetailModal";
 import RefreshButton from "./RefreshButton";
+import { Button } from "./ui/button";
 import Alert from "./Alert.tsx";
 import Pagination from "./Pagination.tsx";
 
@@ -44,13 +45,18 @@ const PartyHistoryPage: React.FC = () => {
     <section className="w-full max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Historia imprez</h1>
-        <RefreshButton
-          onClick={() => {
-            refresh();
-            setToast({ message: "Odświeżono dane", type: "success" });
-          }}
-          loading={refreshing}
-        />
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => window.location.href = '/party'}>
+            Wróć do imprezy
+          </Button>
+          <RefreshButton
+            onClick={() => {
+              refresh();
+              setToast({ message: "Odświeżono dane", type: "success" });
+            }}
+            loading={refreshing}
+          />
+        </div>
       </div>
       {toast && <Alert message={toast.message} type={toast.type} autoHideMs={3500} onClose={() => setToast(null)} />}
       <PartyHistoryTable parties={parties} onSelect={handleSelectParty} pagination={pagination} loading={loading} />

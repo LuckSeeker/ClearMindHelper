@@ -14,9 +14,7 @@ function PartyHeaderComponent({ party, currentBAC }: PartyHeaderProps) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
         <div>
           <h2 className="text-xl font-bold">Aktywna impreza</h2>
-          <div className="text-sm text-muted-foreground">
-            Status: <span className="font-medium">{party.status}</span>
-          </div>
+          {/* Status removed as requested */}
         </div>
         {currentBAC && <BACIndicator currentBAC={currentBAC} />}
       </div>

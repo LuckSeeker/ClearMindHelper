@@ -33,6 +33,7 @@ const PartyHistoryTable: React.FC<PartyHistoryTableProps> = React.memo(({ partie
             <th className="px-3 py-2 text-left">Suma alkoholu</th>
             <th className="px-3 py-2 text-left">Max BAC</th>
             <th className="px-3 py-2 text-left">Blackout</th>
+            <th className="px-3 py-2 text-left">Status</th>
             <th className="px-3 py-2 text-left">Napoje</th>
           </tr>
         </thead>
@@ -53,6 +54,9 @@ const PartyHistoryTable: React.FC<PartyHistoryTableProps> = React.memo(({ partie
                 {party.bac_estimate_max != null ? `${party.bac_estimate_max.toFixed(2)} ‰` : "-"}
               </td>
               <td className="px-3 py-2 whitespace-nowrap">{party.blackout_marked ? "Tak" : "Nie"}</td>
+              <td className="px-3 py-2 whitespace-nowrap">
+                {party.status === "closed" ? "Zamknięta" : party.status === "ongoing" ? "Otwarta" : party.status || "-"}
+              </td>
               <td className="px-3 py-2">
                 <DrinkPreviewList drinks={party.drinks_preview || []} />
               </td>

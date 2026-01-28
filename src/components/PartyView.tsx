@@ -1,4 +1,5 @@
 import { AlertsPanel } from "./AlertsPanel";
+import { Button } from "./ui/button";
 import React, { useState } from "react";
 
 import PartyStartButton from "./PartyStartButton.tsx";
@@ -205,6 +206,15 @@ const PartyView: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto p-4">
+      {/* Navigation buttons */}
+      <div className="flex gap-2 justify-end mb-2">
+        <Button variant="secondary" onClick={() => window.location.href = '/profile'}>
+          Profil
+        </Button>
+        <Button variant="secondary" onClick={() => window.location.href = '/party/history'}>
+          Historia imprez
+        </Button>
+      </div>
       <AlertsPanel />
       {loading && (
         <div className="flex justify-center items-center h-32">

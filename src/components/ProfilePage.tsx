@@ -9,6 +9,8 @@ import ThresholdChangeModal from "./ThresholdChangeModal";
 
 import LogoutButton from "./LogoutButton";
 
+import { Button } from "./ui/button";
+
 const ProfilePage: React.FC = () => {
   // Custom hooks for API integration
   const {
@@ -97,6 +99,12 @@ const ProfilePage: React.FC = () => {
 
   return (
     <main className="max-w-2xl mx-auto py-8 px-4" role="main">
+      {/* Navigation to Party */}
+      <div className="flex justify-end mb-4">
+        <Button variant="secondary" onClick={() => (window.location.href = "/party")}>
+          Przejdź do imprezy
+        </Button>
+      </div>
       {/* Logout Button (visible only on /profile) */}
       <div className="flex justify-end mb-6">
         <LogoutButton />
