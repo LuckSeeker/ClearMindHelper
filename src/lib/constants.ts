@@ -8,6 +8,12 @@ export const WIDMARK_CONSTANTS = {
   METABOLISM_RATE_PER_KG_PER_HOUR: 0.15,
   /** Ratio of threshold for "approaching" status (e.g. 0.9 = 90%) */
   APPROACHING_THRESHOLD_RATIO: 0.9,
+  ETHANOL_DENSITY: 0.789,
+  DEFAULT_METABOLIZATION_RATE: 7.5,
+  UNREALISTIC_VOLUME_THRESHOLD: 2000,
+  FAST_CONSUMPTION_THRESHOLD_MINUTES: 15,
+  MAX_BAC_LIMIT: 5.0,
+  CONSUMED_AT_TOLERANCE_MS: 5 * 60 * 1000,
 } as const;
 // Cooldown (ms) for exceeded_threshold alert reappearance
 export const EXCEEDED_THRESHOLD_ALERT_COOLDOWN_MS = 5 * 60 * 1000;

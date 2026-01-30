@@ -33,235 +33,27 @@ import type {
 import { logError, logInfo } from "../logger";
 import { verifyPartyOwnershipOrThrow } from "../api-helpers";
 import { EventService } from "./event.service";
+import {
+  validatePartyForDrink,
+  validateConsumedAtInPartyTimeframe,
+  checkUnrealisticVolume,
+  checkFastConsumption,
+  validateBACLimit,
+  calculateAlcoholGrams,
+  calculateBACAccurate,
+} from "./drink.logic";
 
 // ============================================================================
 // Constants
 // ============================================================================
 
-/** Ethanol density in g/ml (physical constant) */
-const ETHANOL_DENSITY = 0.789;
-
-/** Unrealistic volume threshold in ml */
-const UNREALISTIC_VOLUME_THRESHOLD = 2000;
-
-/** Fast consumption time threshold in minutes */
-const FAST_CONSUMPTION_THRESHOLD_MINUTES = 15;
-
-/** Tolerance for consumed_at before/after party (5 minutes in ms) */
-export const CONSUMED_AT_TOLERANCE_MS = 5 * 60 * 1000;
-
-/** Maksymalny dozwolony BAC w promilach (‰) (decimal(4,2) limit) */
-const MAX_BAC_LIMIT = 5.0;
-
-/** Default metabolization rate in grams per hour */
-const DEFAULT_METABOLIZATION_RATE = 7.5;
-
-/** Widmark factor for male */
-const WIDMARK_R_MALE = 0.68;
-
-/** Widmark factor for female */
-const WIDMARK_R_FEMALE = 0.55;
+// ...stałe przeniesione do constants.ts...
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
 
-/**
- * Validates party is ongoing (not closed)
- * Note: Party existence and ownership should be verified with verifyPartyOwnershipOrThrow before calling this
- *
- * @param party - Party object to validate
- * @returns Validation result with error details
- */
-export function validatePartyForDrink(party: { status: string }): {
-  valid: boolean;
-  error?: { code: string; message: string };
-  status?: number;
-} {
-  if (party.status !== "ongoing") {
-    return {
-      valid: false,
-      error: {
-        code: ERROR_CODES.PARTY_ALREADY_CLOSED,
-        message: "Cannot add drinks to a closed party",
-      },
-      status: 400,
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Validates consumed_at is within party timeframe
- *
- * @param consumedAt - Drink consumption timestamp
- * @param party - Party entity with started_at and ended_at fields
- * @returns Validation result
- */
-export function validateConsumedAtInPartyTimeframe(
-  consumedAt: Date,
-  party: { started_at: string; ended_at: string | null }
-): { valid: boolean; error?: { code: string; message: string } } {
-  const startedAt = new Date(party.started_at);
-  const endedAt = party.ended_at ? new Date(party.ended_at) : null;
-  const toleranceMs = CONSUMED_AT_TOLERANCE_MS;
-
-  // Pozwól na tolerancję 5 minut przed rozpoczęciem imprezy
-  if (consumedAt.getTime() < startedAt.getTime() - toleranceMs) {
-    return {
-      valid: false,
-      error: {
-        code: ERROR_CODES.CONSUMED_AT_BEFORE_PARTY_START,
-        message: `consumed_at cannot be more than 5 minutes before party start time`,
-      },
-    };
-  }
-
-  if (endedAt && consumedAt > endedAt) {
-    return {
-      valid: false,
-      error: {
-        code: ERROR_CODES.CONSUMED_AT_AFTER_PARTY_END,
-        message: "consumed_at cannot be after party end time",
-      },
-    };
-  }
-
-  const now = new Date();
-  if (consumedAt.getTime() > now.getTime() + toleranceMs) {
-    return {
-      valid: false,
-      error: {
-        code: ERROR_CODES.CONSUMED_AT_IN_FUTURE,
-        message: `consumed_at cannot be more than 5 minutes in the future`,
-      },
-    };
-  }
-
-  return { valid: true };
-}
-
-/**
- * Checks for unrealistic drink volume
- *
- * @param volumeMl - Drink volume in ml
- * @returns Warning if volume is unrealistic
- */
-export function checkUnrealisticVolume(volumeMl: number): DrinkValidationWarning | null {
-  if (volumeMl > UNREALISTIC_VOLUME_THRESHOLD) {
-    return {
-      code: ERROR_CODES.UNREALISTIC_VOLUME,
-      message: `Volume of ${volumeMl}ml is unusually large. Are you sure this is correct?`,
-      field: "volume_ml",
-      value: volumeMl,
-    };
-  }
-  return null;
-}
-
-/**
- * Checks for fast consumption based on last drink
- *
- * @param consumedAt - Current drink consumption time
- * @param lastDrink - Previous drink in party
- * @returns Warning if consumption is too fast
- */
-export function checkFastConsumption(consumedAt: Date, lastDrink: Drink | null): DrinkValidationWarning | null {
-  if (!lastDrink) {
-    return null; // First drink, no warning
-  }
-
-  const lastConsumedAt = new Date(lastDrink.consumed_at);
-  const timeDiffMinutes = (consumedAt.getTime() - lastConsumedAt.getTime()) / (1000 * 60);
-
-  if (timeDiffMinutes < FAST_CONSUMPTION_THRESHOLD_MINUTES) {
-    return {
-      code: ERROR_CODES.FAST_CONSUMPTION,
-      message: `Only ${Math.round(timeDiffMinutes)} minutes since last drink. Consider slowing down.`,
-      field: "consumed_at",
-      value: timeDiffMinutes,
-    };
-  }
-
-  return null;
-}
-
-/**
- * Validates that drink would not cause BAC to exceed database limit
- *
- * @param volumeMl - Drink volume in ml
- * @param abvPercent - Alcohol by volume percentage
- * @param currentTotalAlcohol - Current total alcohol consumed in grams
- * @param profileSnapshot - User profile snapshot
- * @param timeElapsedHours - Time elapsed since party start
- * @returns Error if BAC would exceed limit
- */
-export function validateBACLimit(
-  volumeMl: number,
-  abvPercent: number,
-  currentTotalAlcohol: number,
-  profileSnapshot: ProfileSnapshot
-): { valid: boolean; error?: { code: string; message: string } } {
-  // Prosta walidacja: sprawdź czy suma alkoholu nie przekracza limitu (nie uwzględnia metabolizmu)
-  const newAlcoholGrams = calculateAlcoholGrams(volumeMl, abvPercent);
-  const totalWithNewDrink = currentTotalAlcohol + newAlcoholGrams;
-  const bodyWeightGrams = profileSnapshot.weight_kg * 1000;
-  const widmarkR = profileSnapshot.gender === "M" ? WIDMARK_R_MALE : WIDMARK_R_FEMALE;
-  const projectedBAC = (totalWithNewDrink / (bodyWeightGrams * widmarkR)) * 1000;
-  if (projectedBAC > MAX_BAC_LIMIT) {
-    return {
-      valid: false,
-      error: {
-        code: ERROR_CODES.BAC_LIMIT_EXCEEDED,
-        message: `This drink would result in BAC of ${projectedBAC.toFixed(2)}‰, which exceeds the maximum allowed value of ${MAX_BAC_LIMIT}‰. Please reduce volume or ABV.`,
-      },
-    };
-  }
-  return { valid: true };
-}
-
-/**
- * Calculates alcohol grams from volume and ABV
- *
- * @param volumeMl - Volume in ml
- * @param abvPercent - Alcohol by volume percentage
- * @returns Alcohol content in grams
- */
-export function calculateAlcoholGrams(volumeMl: number, abvPercent: number): number {
-  return (volumeMl * abvPercent * ETHANOL_DENSITY) / 100;
-}
-
-/**
- * Calculates BAC using improved Widmark formula:
- * Suma pozostałości alkoholu z każdego drinka po metabolizmie od czasu spożycia.
- *
- * @param drinks - lista drinków (musi mieć volume_ml, abv_percent, consumed_at)
- * @param profileSnapshot - profil użytkownika
- * @param now - czas obliczenia BAC (Date)
- * @param metabolizationRate - tempo metabolizmu (g/h)
- */
-export function calculateBACAccurate(
-  drinks: { volume_ml: number; abv_percent: number; consumed_at: string }[],
-  profileSnapshot: ProfileSnapshot,
-  now: Date,
-  metabolizationRate: number = DEFAULT_METABOLIZATION_RATE
-): number {
-  const bodyWeightGrams = profileSnapshot.weight_kg * 1000;
-  const widmarkR = profileSnapshot.gender === "M" ? WIDMARK_R_MALE : WIDMARK_R_FEMALE;
-
-  let totalRemainingAlcohol = 0;
-  for (const drink of drinks) {
-    const alcoholGrams = calculateAlcoholGrams(drink.volume_ml, drink.abv_percent);
-    const consumedAt = new Date(drink.consumed_at);
-    const hoursElapsed = (now.getTime() - consumedAt.getTime()) / (1000 * 60 * 60);
-    const metabolized = Math.max(0, hoursElapsed) * metabolizationRate;
-    const remaining = Math.max(0, alcoholGrams - metabolized);
-    totalRemainingAlcohol += remaining;
-  }
-  const bac = (totalRemainingAlcohol / (bodyWeightGrams * widmarkR)) * 1000;
-  return Math.max(0, bac);
-}
+// ...funkcje czysto funkcyjne przeniesione do drink.logic.ts...
 
 /**
  * Gets or creates user threshold
@@ -655,7 +447,7 @@ export async function addDrinkToParty(
   for (const drink of allDrinks || []) {
     const consumedAtDrink = new Date(drink.consumed_at);
     const hoursElapsed = (consumedAt.getTime() - consumedAtDrink.getTime()) / (1000 * 60 * 60);
-    metabolizedAlcohol += Math.max(0, hoursElapsed) * DEFAULT_METABOLIZATION_RATE;
+    metabolizedAlcohol += Math.max(0, hoursElapsed) * WIDMARK_CONSTANTS.DEFAULT_METABOLIZATION_RATE;
   }
   const timeElapsedMinutes =
     allDrinks && allDrinks.length > 0
@@ -954,7 +746,7 @@ export async function updateLastDrink(
     (new Date(editedDrink.consumed_at).getTime() - partyStart.getTime()) / (1000 * 60)
   );
   const timeElapsedHours = timeElapsedMinutes / 60;
-  const metabolizedAlcohol = timeElapsedHours * DEFAULT_METABOLIZATION_RATE;
+  const metabolizedAlcohol = timeElapsedHours * WIDMARK_CONSTANTS.DEFAULT_METABOLIZATION_RATE;
 
   const { data: updatedBac, error: bacUpdateError } = await supabase
     .from("baccalculations")

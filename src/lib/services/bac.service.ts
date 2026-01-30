@@ -39,14 +39,14 @@ type ThresholdStatus = "safe" | "approaching" | "exceeded";
 /**
  * Get water distribution coefficient based on gender
  */
-function getWaterDistributionCoefficient(gender: "M" | "F"): number {
+export function getWaterDistributionCoefficient(gender: "M" | "F"): number {
   return gender === "M" ? WIDMARK_CONSTANTS.MALE_R : WIDMARK_CONSTANTS.FEMALE_R;
 }
 
 /**
  * Calculate time elapsed in minutes between two timestamps
  */
-function getTimeElapsedMinutes(from: string, to: string): number {
+export function getTimeElapsedMinutes(from: string, to: string): number {
   const fromDate = new Date(from);
   const toDate = new Date(to);
   return Math.floor((toDate.getTime() - fromDate.getTime()) / 1000 / 60);
@@ -58,7 +58,7 @@ function getTimeElapsedMinutes(from: string, to: string): number {
  * @param profileSnapshot - User profile (weight, gender)
  * @returns BAC decrease in ‰ per hour
  */
-function getBACDecreasePerHour(profileSnapshot: ProfileSnapshot): number {
+export function getBACDecreasePerHour(profileSnapshot: ProfileSnapshot): number {
   const r = getWaterDistributionCoefficient(profileSnapshot.gender);
   const alcoholMetabolizedGramsPerHour = WIDMARK_CONSTANTS.METABOLISM_RATE_PER_KG_PER_HOUR * profileSnapshot.weight_kg;
 
@@ -76,7 +76,7 @@ function getBACDecreasePerHour(profileSnapshot: ProfileSnapshot): number {
  * @param profileSnapshot - User profile data for metabolism calculation
  * @returns Decay calculation details
  */
-function calculateBACDecay(
+export function calculateBACDecay(
   originalBAC: number,
   calculatedAt: string,
   profileSnapshot: ProfileSnapshot
@@ -105,7 +105,7 @@ function calculateBACDecay(
  * @param threshold - User's threshold in ‰
  * @returns Status: "safe", "approaching", or "exceeded"
  */
-function determineThresholdStatus(currentBAC: number, threshold: number): ThresholdStatus {
+export function determineThresholdStatus(currentBAC: number, threshold: number): ThresholdStatus {
   if (currentBAC >= threshold) {
     return "exceeded";
   }
@@ -125,7 +125,7 @@ function determineThresholdStatus(currentBAC: number, threshold: number): Thresh
  * @param profileSnapshot - User profile for metabolism calculation
  * @returns Estimated minutes to sober, or null if already sober
  */
-function calculateTimeToSober(currentBAC: number, profileSnapshot: ProfileSnapshot): number | null {
+export function calculateTimeToSober(currentBAC: number, profileSnapshot: ProfileSnapshot): number | null {
   if (currentBAC <= 0) {
     return null;
   }
