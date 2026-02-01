@@ -12,6 +12,7 @@ export const InlineError: React.FC<InlineErrorProps> = ({ message, onClose }) =>
       className="flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mt-2"
       role="alert"
       aria-live="assertive"
+      data-testid="alert-item"
     >
       <span aria-hidden="true">❗</span>
       <span>{message}</span>

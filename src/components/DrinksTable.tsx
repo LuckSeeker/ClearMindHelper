@@ -17,11 +17,11 @@ function DrinksTableComponent({ drinks, party, onAdd, onEdit }: DrinksTableProps
     <div className="w-full mt-4">
       <div className="flex justify-between items-center mb-2">
         <h3 className="font-semibold text-lg">Napoje</h3>
-        <Button variant="outline" size="sm" onClick={onAdd} aria-label="Dodaj napój">
+        <Button variant="outline" size="sm" onClick={onAdd} aria-label="Dodaj napój" data-testid="add-drink-btn">
           Dodaj napój
         </Button>
       </div>
-      <table className="w-full text-sm border rounded overflow-hidden">
+      <table className="w-full text-sm border rounded overflow-hidden" data-testid="drinks-table">
         <thead className="bg-muted">
           <tr>
             <th className="p-2 text-center">Nazwa</th>
@@ -55,7 +55,7 @@ function DrinksTableComponent({ drinks, party, onAdd, onEdit }: DrinksTableProps
               </td>
               <td className="p-2 text-center">
                 {canEdit && idx === drinks.length - 1 && (
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(drink.id)} aria-label="Edytuj napój">
+                  <Button variant="ghost" size="sm" onClick={() => onEdit(drink.id)} aria-label="Edytuj napój" data-testid="edit-drink-btn">
                     Edytuj
                   </Button>
                 )}

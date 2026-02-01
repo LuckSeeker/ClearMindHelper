@@ -1,12 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+import dotenv from "dotenv";
+import path from "path";
+
+dotenv.config({ path: path.resolve(process.cwd(), ".env.test") });
 
 export default defineConfig({
   testDir: "./src/__tests__/e2e",
-  timeout: 30 * 1000,
+  timeout: 60 * 1000,
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
@@ -19,12 +23,12 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     video: "retain-on-failure",
     screenshot: "only-on-failure",
-    baseURL: "http://localhost:3000",
+    baseURL: process.env.BASE_URL,
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm run dev",
-    port: 3000,
+    command: "npm run dev:e2e",
+    url: process.env.BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },

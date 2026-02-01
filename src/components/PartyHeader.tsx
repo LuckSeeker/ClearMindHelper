@@ -10,7 +10,7 @@ interface PartyHeaderProps {
 
 function PartyHeaderComponent({ currentBAC }: PartyHeaderProps) {
   return (
-    <header className="flex flex-col gap-2 w-full">
+    <header className="flex flex-col gap-2 w-full" data-testid="party-header">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
         <div>
           <h2 className="text-xl font-bold">Aktywna impreza</h2>

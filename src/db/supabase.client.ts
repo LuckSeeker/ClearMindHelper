@@ -1,9 +1,11 @@
 import { createServerClient, type CookieOptionsWithName } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import type { AstroCookies } from "astro";
+import type { Database } from "./database.types";
 
 export const cookieOptions: CookieOptionsWithName = {
   path: "/",
-  secure: true,
+  secure: !import.meta.env.DEV,
   httpOnly: true,
   sameSite: "lax",
 };
@@ -26,16 +28,23 @@ export const createSupabaseServerInstance = (context: { headers: Headers; cookie
           return parseCookieHeader(context.headers.get("Cookie") ?? "");
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => context.cookies.set(name, value, options));
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => context.cookies.set(name, value, options));
+          } catch (error) {
+            // Catch error if cookies are set after response sent
+            // This can happen during auth callbacks, but the cookies are still synced through headers
+            if (error instanceof Error && error.message?.includes("response has already been sent")) {
+              // Silently ignore - cookies were already sent in response headers
+              return;
+            }
+            throw error;
+          }
         },
       },
     }
   );
   return supabase;
 };
-import { createClient } from "@supabase/supabase-js";
-
-import type { Database } from "../db/database.types.ts";
 
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_KEY;

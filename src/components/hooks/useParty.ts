@@ -108,11 +108,14 @@ export function useParty() {
   }, []);
 
   // Efekt inicjalizujący: pobierz aktywną imprezę i jej szczegóły
+  // Skip na first mount i czekaj aż party state zmieni się
   React.useEffect(() => {
+    let isMounted = true;
     const fetchActiveParty = async () => {
       dispatch({ type: "SET_LOADING", payload: true });
       try {
         const res = await fetch("/api/parties?status=ongoing");
+        if (!isMounted) return; // Skip if component unmounted
         if (res.ok) {
           const result = await res.json();
           const data = result.data;
@@ -128,9 +131,18 @@ export function useParty() {
       } catch (e) {
         logError("Błąd pobierania aktywnej imprezy", e);
       }
-      dispatch({ type: "SET_LOADING", payload: false });
+      if (isMounted) {
+        dispatch({ type: "SET_LOADING", payload: false });
+      }
     };
+
+    // Uruchom fetchActiveParty natychmiast na montowanie
+    // Button będzie widoczny dopóki loading === true i fetchActiveParty się wykonuje
     fetchActiveParty();
+
+    return () => {
+      isMounted = false;
+    };
   }, [refreshPartyDetails]);
 
   // Wywołanie POST /api/parties (rozpoczęcie imprezy)
@@ -142,7 +154,10 @@ export function useParty() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ started_at: new Date().toISOString() }),
       });
-      if (!res.ok) throw new Error("Nie udało się rozpocząć imprezy");
+
+      if (!res.ok) {
+        throw new Error("Nie udało się rozpocząć imprezy");
+      }
       const party: PartyDetailDTO = await res.json();
       dispatch({ type: "SET_PARTY", payload: party });
       dispatch({ type: "SET_DRINKS", payload: party.drinks || [] });

@@ -54,7 +54,7 @@ const AddEditDrinkModal: React.FC<AddEditDrinkModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="drink-modal">
       <div className="bg-white rounded shadow-lg p-6 w-full max-w-md">
         <h2 className="text-lg font-bold mb-4">{isEditing ? "Edytuj napój" : "Dodaj napój"}</h2>
         <form
@@ -68,6 +68,7 @@ const AddEditDrinkModal: React.FC<AddEditDrinkModalProps> = ({
             Objętość [ml]
             <input
               type="number"
+              name="volume_ml"
               min={1}
               max={5000}
               value={form.volume_ml}
@@ -83,6 +84,7 @@ const AddEditDrinkModal: React.FC<AddEditDrinkModalProps> = ({
             Alk. [%]
             <input
               type="number"
+              name="abv_percent"
               min={0.1}
               max={100}
               step={0.1}

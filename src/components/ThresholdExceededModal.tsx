@@ -18,7 +18,7 @@ const ThresholdExceededModal: React.FC<ThresholdExceededModalProps> = ({
 }) => {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" data-testid="threshold-exceeded-modal">
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-md">
         <h2 className="text-lg font-bold mb-2 text-red-700 dark:text-red-400 flex items-center gap-2">
           <span>Przekroczono próg BAC!</span>

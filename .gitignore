@@ -1,5 +1,7 @@
 # build output
 dist/
+test-results/
+playwright-report/
 
 # generated types
 .astro/
@@ -15,6 +17,9 @@ pnpm-debug.log*
 
 # environment variables
 .env
+.env.test
+.env.test.local
+.env.local
 .env.production
 
 # macOS-specific files
@@ -22,3 +27,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+# test reports
+playwright-report/
+test-results/

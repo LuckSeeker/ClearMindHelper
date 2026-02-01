@@ -61,7 +61,12 @@ const PartyView: React.FC = () => {
       estimated_time_to_sober_minutes: currentBAC?.estimated_time_to_sober_minutes ?? null,
     };
   }
-  const { startParty, closeParty: closePartyOrig, markBlackout, clearError } = partyApi;
+  const { startParty: startPartyAsync, closeParty: closePartyOrig, markBlackout, clearError } = partyApi;
+
+  // Handler dla startParty - konwertuje async na sync dla UI
+  const handleStartParty = React.useCallback(async () => {
+    await startPartyAsync();
+  }, [startPartyAsync]);
 
   // Blackout & ThresholdExceeded modal state
   const [blackoutModalOpen, setBlackoutModalOpen] = useState(false);
@@ -208,10 +213,10 @@ const PartyView: React.FC = () => {
     <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto p-4">
       {/* Navigation buttons */}
       <div className="flex gap-2 justify-end mb-2">
-        <Button variant="secondary" onClick={() => window.location.href = '/profile'}>
+        <Button variant="secondary" onClick={() => (window.location.href = "/profile")}>
           Profil
         </Button>
-        <Button variant="secondary" onClick={() => window.location.href = '/party/history'}>
+        <Button variant="secondary" onClick={() => (window.location.href = "/party/history")}>
           Historia imprez
         </Button>
       </div>
@@ -256,34 +261,12 @@ const PartyView: React.FC = () => {
             <ClosePartyButton party={party} onClose={handleCloseParty} />
           </div>
           {/* BACIndicator jest renderowany w PartyHeader */}
-          <AddEditDrinkModal
-            open={drinkModalOpen}
-            onClose={() => {
-              setDrinkModalOpen(false);
-              setEditingDrink(null);
-            }}
-            onSubmit={handleDrinkSubmit}
-            initialValues={
-              editingDrink
-                ? {
-                    volume_ml: editingDrink.volume_ml,
-                    abv_percent: editingDrink.abv_percent,
-                    consumed_at: (() => {
-                      const d = new Date(editingDrink.consumed_at);
-                      const pad = (n: number) => n.toString().padStart(2, "0");
-                      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-                    })(),
-                    errors: {},
-                    isEditing: true,
-                    drinkId: editingDrink.id,
-                  }
-                : undefined
-            }
-            isEditing={!!editingDrink}
-          />
         </>
       ) : (
-        !loading && <PartyStartButton onStart={startParty} />
+        <>
+          {/* eslint-disable-next-line no-console */}
+          {!loading && <PartyStartButton onStart={handleStartParty} />}
+        </>
       )}
 
       {/* BlackoutModal renderowany niezależnie od party */}

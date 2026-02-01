@@ -14,7 +14,7 @@ export const AlertsPanel: React.FC = () => {
   });
 
   return (
-    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 max-w-xs">
+    <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 max-w-xs" data-testid="alerts-panel">
       {inlineAlerts.map((alert) => (
         <InlineError key={alert.id} message={alert.message} onClose={() => removeAlert(alert.id)} />
       ))}

@@ -67,6 +67,7 @@ export const AlertModal: React.FC<AlertModalProps> = ({ alert, onClose }) => {
             className="px-4 py-2 rounded bg-neutral-400 text-black hover:bg-neutral-300"
             onClick={onClose}
             aria-label="Zamknij modal"
+            data-testid="alert-modal-close"
           >
             Zamknij
           </button>

@@ -60,7 +60,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSubmit, isSubmitti
   };
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit} aria-labelledby="profile-form-title">
+    <form className="space-y-4" onSubmit={handleSubmit} aria-labelledby="profile-form-title" data-testid="profile-form">
       <h3 id="profile-form-title" className="sr-only">
         Formularz profilu
       </h3>
@@ -72,6 +72,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSubmit, isSubmitti
           type="number"
           name="height_cm"
           id="height_cm"
+          data-testid="height-input"
           min={50}
           max={250}
           value={form.height_cm}
@@ -94,6 +95,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSubmit, isSubmitti
           type="number"
           name="weight_kg"
           id="weight_kg"
+          data-testid="weight-input"
           min={30}
           max={300}
           value={form.weight_kg}
@@ -114,6 +116,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({ profile, onSubmit, isSubmitti
         </label>
         <select
           name="gender"
+          data-testid="gender-select"
           id="gender"
           value={form.gender}
           onChange={handleChange}

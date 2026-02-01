@@ -15,12 +15,12 @@ const ThresholdCard: React.FC<ThresholdCardProps> = ({ threshold, onChangeClick,
   const safeReason = typeof threshold?.reason === "string" ? threshold.reason : "";
   const safeCreatedAt = threshold?.created_at ? new Date(threshold.created_at).toLocaleString() : "";
   return (
-    <Card className="w-full" role="region" aria-labelledby="threshold-card-title">
+    <Card className="w-full" role="region" aria-labelledby="threshold-card-title" data-testid="threshold-card">
       <CardHeader>
         <CardTitle id="threshold-card-title">Aktualny próg BAC</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold" aria-live="polite">
+        <div className="text-2xl font-bold" aria-live="polite" data-testid="threshold-value">
           {safeThreshold !== null ? safeThreshold.toFixed(2) : "—"} ‰
         </div>
         {safeReason && (
@@ -41,6 +41,7 @@ const ThresholdCard: React.FC<ThresholdCardProps> = ({ threshold, onChangeClick,
           variant="outline"
           aria-disabled={isBlocked}
           aria-describedby={isBlocked ? "profile-incomplete-msg" : undefined}
+          data-testid="threshold-change-btn"
         >
           Zmień próg
         </Button>

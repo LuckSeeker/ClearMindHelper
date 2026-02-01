@@ -197,7 +197,7 @@ export async function startParty(supabase: SupabaseClient, userId: string, start
     party_id: BigInt(newParty.id),
   });
 
-  // Transform to DTO
+  // Transform to DTO - Base PartyDTO
   const partyDTO: PartyDTO = {
     id: newParty.id,
     user_id: newParty.user_id,

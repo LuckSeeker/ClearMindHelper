@@ -33,7 +33,7 @@ function BACIndicatorComponent({ currentBAC }: BACIndicatorProps) {
       ? currentBAC.current_bac.toFixed(3)
       : "--";
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2" data-testid="bac-indicator">
       <div className="w-32">
         <div className="h-3 rounded-full bg-gray-200 dark:bg-gray-700 relative overflow-hidden">
           <div
@@ -46,7 +46,7 @@ function BACIndicatorComponent({ currentBAC }: BACIndicatorProps) {
           />
         </div>
       </div>
-      <span className="font-mono text-lg" aria-label="BAC">
+      <span className="font-mono text-lg" aria-label="BAC" data-testid="bac-value">
         {bacValue}‰
       </span>
     </div>

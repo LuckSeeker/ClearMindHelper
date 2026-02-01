@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { ERROR_CODES } from "../../lib/constants";
 import { logError, logInfo } from "../../lib/logger";
-import { getPartyList, startParty } from "../../lib/services/party.service";
+import { getPartyList, startParty, getPartyDetails } from "../../lib/services/party.service";
 import { PartyListQuerySchema, StartPartySchema } from "../../lib/validation/party.validation";
 import {
   parseJsonBody,
@@ -12,7 +12,7 @@ import {
   validateSupabaseClient,
   getUserIdFromSupabase,
 } from "../../lib/api-helpers";
-import type { PartyDTO, PartyListResponseDTO } from "../../types";
+import type { PartyListResponseDTO, PartyDetailDTO } from "../../types";
 
 export const prerender = false;
 
@@ -143,7 +143,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const party = await startParty(supabase, userId, validationResult.data.started_at);
       logInfo("Party started successfully", { userId, partyId: party.id });
 
-      return new Response(JSON.stringify(party satisfies PartyDTO), {
+      // Pobierz pełne szczegóły partii (z napojami, alertami, BAC)
+      const partyDetail = await getPartyDetails(supabase, userId, party.id);
+
+      return new Response(JSON.stringify(partyDetail satisfies PartyDetailDTO), {
         status: 201,
         headers: {
           "Content-Type": "application/json",

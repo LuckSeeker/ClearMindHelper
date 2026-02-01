@@ -161,7 +161,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ mode }) => {
   );
 
   return (
-    <form className="space-y-6 w-full max-w-sm mx-auto" onSubmit={handleSubmit}>
+    <form className="space-y-6 w-full max-w-sm mx-auto" onSubmit={handleSubmit} data-testid="auth-form">
       <h2 className="text-2xl font-bold text-center mb-2">
         {isLogin && "Logowanie"}
         {isRegister && "Rejestracja"}

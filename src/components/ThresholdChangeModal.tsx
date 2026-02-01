@@ -11,7 +11,7 @@ interface ThresholdChangeModalProps {
   currentValue?: number;
 }
 
-const MIN = 0.08;
+const MIN = 0.01;
 
 const ThresholdChangeModal: React.FC<ThresholdChangeModalProps> = ({
   isOpen,

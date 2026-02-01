@@ -23,6 +23,7 @@ export const EmailInput: React.FC<EmailInputProps> = ({ value, onChange, error, 
       aria-describedby={error ? "email-error" : undefined}
       required
       ref={inputRef}
+      data-testid="email-input"
     />
     {error && (
       <span id="email-error" className="text-xs text-destructive">

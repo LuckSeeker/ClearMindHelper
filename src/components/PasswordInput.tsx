@@ -24,6 +24,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({ value, onChange, e
       required
       minLength={8}
       ref={inputRef}
+      data-testid="password-input"
     />
     {error && (
       <span id="password-error" className="text-xs text-destructive">

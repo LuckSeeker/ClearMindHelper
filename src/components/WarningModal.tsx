@@ -11,7 +11,7 @@ interface WarningModalProps {
 function WarningModalComponent({ warning, onConfirm, onCancel }: WarningModalProps) {
   if (!warning) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="warning-modal">
       <div className="bg-white rounded shadow-lg p-6 w-full max-w-md">
         <h2 className="text-lg font-bold mb-4">Ostrzeżenie</h2>
         <div className="mb-4 text-yellow-800 bg-yellow-100 p-2 rounded">
