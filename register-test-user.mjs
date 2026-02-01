@@ -16,20 +16,13 @@ const password = process.env.E2E_PASSWORD || "E2ETestPassword123!";
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function main() {
-  console.log(`Creating test user: ${email}`);
-
-  const { data, error } = await supabase.auth.signUp({
+  const { error } = await supabase.auth.signUp({
     email,
     password,
   });
 
   if (error) {
-    console.error("Error creating user:", error.message);
     process.exit(1);
-  } else {
-    console.log("✅ User created:", data.user?.id);
-    console.log("📧 Email:", data.user?.email);
-    console.log("\n⚠️  User email confirmed. Ready for testing!");
   }
 }
 

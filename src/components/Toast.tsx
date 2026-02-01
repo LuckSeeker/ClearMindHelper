@@ -27,12 +27,12 @@ function ToastComponent({ open, message, type = "info", onClose }: ToastProps) {
     return () => clearTimeout(timer);
   }, [open, onClose]);
 
-  if (!open) return null;
   return (
     <div
       className={`fixed bottom-6 right-6 z-50 px-4 py-2 rounded shadow-lg flex items-center gap-2 ${getToastColor(type)}`}
       role="alert"
       aria-live="assertive"
+      style={{ display: open ? "flex" : "none" }}
     >
       <span>{message}</span>
       <Button variant="ghost" size="sm" onClick={onClose} aria-label="Zamknij powiadomienie">

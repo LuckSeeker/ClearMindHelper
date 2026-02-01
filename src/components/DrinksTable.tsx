@@ -55,7 +55,13 @@ function DrinksTableComponent({ drinks, party, onAdd, onEdit }: DrinksTableProps
               </td>
               <td className="p-2 text-center">
                 {canEdit && idx === drinks.length - 1 && (
-                  <Button variant="ghost" size="sm" onClick={() => onEdit(drink.id)} aria-label="Edytuj napój" data-testid="edit-drink-btn">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(drink.id)}
+                    aria-label="Edytuj napój"
+                    data-testid="edit-drink-btn"
+                  >
                     Edytuj
                   </Button>
                 )}

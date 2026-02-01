@@ -79,9 +79,13 @@ const PartyDetailModal: React.FC<PartyDetailModalProps> = React.memo(function Pa
     );
   }, [partyDetail]);
 
-  if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      role="dialog"
+      aria-modal="true"
+      style={{ display: open ? "flex" : "none" }}
+    >
       <div
         className="relative bg-white dark:bg-neutral-900 rounded shadow-lg p-6 min-w-[340px] max-w-lg w-full max-h-[90vh] overflow-y-auto"
         ref={modalRef}

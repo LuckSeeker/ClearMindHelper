@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* eslint-env node */
-/* eslint-disable no-undef */
+/* eslint-disable no-undef, no-console */
 /**
  * Script do stworzenia testowego użytkownika w Supabase
  * Używa Supabase Admin API
@@ -33,10 +33,6 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey, {
 const testEmail = process.env.E2E_USERNAME || `test-${Date.now()}@example.com`;
 const testPassword = process.env.E2E_PASSWORD || "TestPassword123!";
 
-console.log("🚀 Creating test user...");
-console.log(`📧 Email: ${testEmail}`);
-console.log(`🔒 Password: ${testPassword}`);
-
 (async () => {
   try {
     // Create user with admin API
@@ -47,17 +43,12 @@ console.log(`🔒 Password: ${testPassword}`);
     });
 
     if (error) {
-      console.error("❌ Error creating user:", error.message);
       process.exit(1);
     }
 
     if (!data.user) {
-      console.error("❌ User creation failed - no user returned");
       process.exit(1);
     }
-
-    console.log("✅ User created successfully!");
-    console.log(`👤 User ID: ${data.user.id}`);
 
     // Update .env.test
     const envPath = path.join(process.cwd(), ".env.test");
@@ -69,16 +60,7 @@ console.log(`🔒 Password: ${testPassword}`);
     envContent = envContent.replace(/E2E_USERNAME_ID=.*/, `E2E_USERNAME_ID=${data.user.id}`);
 
     fs.writeFileSync(envPath, envContent);
-
-    console.log("✅ Updated .env.test with new credentials:");
-    console.log(`   E2E_USERNAME=${testEmail}`);
-    console.log(`   E2E_PASSWORD=${testPassword}`);
-    console.log(`   E2E_USERNAME_ID=${data.user.id}`);
-
-    console.log("\n🎉 Test user created and .env.test updated!");
-    console.log("You can now run: npm run test:e2e");
-  } catch (err) {
-    console.error("❌ Error:", err instanceof Error ? err.message : err);
+  } catch {
     process.exit(1);
   }
 })();
