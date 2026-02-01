@@ -134,7 +134,13 @@ export class PartyPage {
 
   async closeAddDrinkModal() {
     await this.drinkModalCloseButton.click();
-    await this.drinkModal.waitFor({ state: "hidden", timeout: 2000 });
+    await this.page.waitForFunction(
+      () => {
+        const modal = document.querySelector('[data-testid="drink-modal"]');
+        return modal && window.getComputedStyle(modal).display === "none";
+      },
+      { timeout: 2000 }
+    );
   }
 
   async addDrink(drink: { volume: number; abv: number; time?: string }) {
@@ -152,8 +158,14 @@ export class PartyPage {
     // Wyślij formularz
     await this.drinkSubmitButton.click();
 
-    // Czekaj aż modal się zamknie
-    await this.drinkModal.waitFor({ state: "hidden", timeout: 2000 });
+    // Czekaj aż modal się zamknie (display: none)
+    await this.page.waitForFunction(
+      () => {
+        const modal = document.querySelector('[data-testid="drink-modal"]');
+        return modal && window.getComputedStyle(modal).display === "none";
+      },
+      { timeout: 5000 }
+    );
 
     // Czekaj aż napój pojawi się w tabeli
     await this.page.waitForTimeout(500); // Give API time to process
@@ -209,7 +221,13 @@ export class PartyPage {
       await this.page.waitForTimeout(500);
     }
 
-    await this.drinkModal.waitFor({ state: "hidden", timeout: 3000 });
+    await this.page.waitForFunction(
+      () => {
+        const modal = document.querySelector('[data-testid="drink-modal"]');
+        return modal && window.getComputedStyle(modal).display === "none";
+      },
+      { timeout: 3000 }
+    );
   }
 
   async getCurrentBAC(): Promise<number | null> {

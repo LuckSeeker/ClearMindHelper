@@ -51,10 +51,12 @@ const AddEditDrinkModal: React.FC<AddEditDrinkModalProps> = ({
     }
   }, [open, initialValues]);
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="drink-modal">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      data-testid="drink-modal"
+      style={{ display: open ? "flex" : "none" }}
+    >
       <div className="bg-white rounded shadow-lg p-6 w-full max-w-md">
         <h2 className="text-lg font-bold mb-4">{isEditing ? "Edytuj napój" : "Dodaj napój"}</h2>
         <form

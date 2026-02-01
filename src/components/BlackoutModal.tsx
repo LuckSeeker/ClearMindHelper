@@ -10,9 +10,12 @@ interface BlackoutModalProps {
 }
 
 const BlackoutModal: React.FC<BlackoutModalProps> = ({ party, open, onConfirm, onCancel }) => {
-  if (!open || !party) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="blackout-modal">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      data-testid="blackout-modal"
+      style={{ display: open && party ? "flex" : "none" }}
+    >
       <div className="bg-white rounded shadow-lg p-6 w-full max-w-md">
         <h2 className="text-lg font-bold mb-4">Czy wystąpił blackout?</h2>
         <p className="mb-4">
