@@ -189,28 +189,22 @@ export class PartyPage {
 
     // Zmień wartości
     if (newData.volume !== undefined) {
-      console.log(`Filling volume: ${newData.volume}`);
       await this.drinkVolumeInput.fill(newData.volume.toString());
       await this.drinkVolumeInput.blur();
     }
     if (newData.abv !== undefined) {
-      console.log(`Filling ABV: ${newData.abv}`);
       await this.drinkAbvInput.fill(newData.abv.toString());
       await this.drinkAbvInput.blur();
     }
 
     // Zapisz
-    console.log("Waiting for submit button...");
     await this.drinkSubmitButton.waitFor({ state: "visible", timeout: 2000 });
-    console.log("Clicking submit...");
     await this.drinkSubmitButton.click();
-    console.log("Waiting for modal to close...");
 
     // Czekaj na AlertModal jeśli się pojawił po edycji (np. threshold exceeded)
     // Timeout musi być długi bo AlertModal może pojawiać się z opóźnieniem
     const isAlertVisibleAfterEdit = await alertCloseBtn.isVisible({ timeout: 3000 }).catch(() => false);
     if (isAlertVisibleAfterEdit) {
-      console.log("AlertModal detected after edit, closing...");
       await alertCloseBtn.click();
       await this.page.waitForTimeout(500);
     }
@@ -222,7 +216,6 @@ export class PartyPage {
     try {
       const bacIndicator = await this.bacIndicator.isVisible({ timeout: 5000 });
       if (!bacIndicator) {
-        console.error("BAC indicator not visible");
         return null;
       }
       const bacText = await this.bacIndicator.locator("[data-testid='bac-value']").textContent({ timeout: 5000 });
@@ -230,7 +223,6 @@ export class PartyPage {
       const match = bacText.match(/[\d.]+/);
       return match ? parseFloat(match[0]) : null;
     } catch (error) {
-      console.error("Error getting BAC:", error);
       await this.page.screenshot({ path: `debug-bac-${Date.now()}.png` });
       throw error;
     }

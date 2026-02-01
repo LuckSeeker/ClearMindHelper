@@ -65,7 +65,7 @@ export function useApiResource<T>(url: string, options?: UseApiResourceOptions):
   // Fetch data on mount and when url/options change
   useEffect(() => {
     fetchResource();
-  }, [url, options?.method, options?.body]);
+  }, [url, options?.method, options?.body, fetchResource]);
 
   return { data, isLoading, error, errorCode, refetch: fetchResource, setData };
 }

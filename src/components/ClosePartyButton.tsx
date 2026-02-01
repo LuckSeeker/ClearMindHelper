@@ -12,7 +12,13 @@ interface ClosePartyButtonProps {
 const ClosePartyButton: React.FC<ClosePartyButtonProps> = ({ party, onClose }) => {
   if (party.status !== "ongoing") return null;
   return (
-    <Button variant="destructive" size="sm" onClick={() => onClose({})} aria-label="Zamknij imprezę" data-testid="close-party-btn">
+    <Button
+      variant="destructive"
+      size="sm"
+      onClick={() => onClose({})}
+      aria-label="Zamknij imprezę"
+      data-testid="close-party-btn"
+    >
       Zamknij imprezę
     </Button>
   );

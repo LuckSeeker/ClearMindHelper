@@ -264,7 +264,7 @@ const PartyView: React.FC = () => {
         </>
       ) : (
         <>
-          {/* eslint-disable-next-line no-console */}
+          {}
           {!loading && <PartyStartButton onStart={handleStartParty} />}
         </>
       )}

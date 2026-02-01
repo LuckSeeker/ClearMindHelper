@@ -46,7 +46,7 @@ const PartyHistoryPage: React.FC = () => {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">Historia imprez</h1>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => window.location.href = '/party'}>
+          <Button variant="secondary" onClick={() => (window.location.href = "/party")}>
             Wróć do imprezy
           </Button>
           <RefreshButton
