@@ -42,5 +42,9 @@ export default defineConfig({
       "process.env.LANGUAGE": JSON.stringify("pl_PL.UTF-8"),
     },
   },
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    platformProxy: {
+      enabled: true,
+    },
+  }),
 });
