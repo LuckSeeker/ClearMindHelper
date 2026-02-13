@@ -18,31 +18,34 @@ function parseCookieHeader(cookieHeader: string): { name: string; value: string 
 }
 
 export const createSupabaseServerInstance = (context: { headers: Headers; cookies: AstroCookies }) => {
-  const supabase = createServerClient<Database>(
-    import.meta.env.SUPABASE_URL || import.meta.env.PUBLIC_SUPABASE_URL,
-    import.meta.env.SUPABASE_KEY || import.meta.env.PUBLIC_SUPABASE_KEY,
-    {
-      cookieOptions,
-      cookies: {
-        getAll() {
-          return parseCookieHeader(context.headers.get("Cookie") ?? "");
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) => context.cookies.set(name, value, options));
-          } catch (error) {
-            // Catch error if cookies are set after response sent
-            // This can happen during auth callbacks, but the cookies are still synced through headers
-            if (error instanceof Error && error.message?.includes("response has already been sent")) {
-              // Silently ignore - cookies were already sent in response headers
-              return;
-            }
-            throw error;
-          }
-        },
+  const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+  const supabaseKey = import.meta.env.PUBLIC_SUPABASE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Missing Supabase environment variables");
+  }
+
+  const supabase = createServerClient<Database>(supabaseUrl, supabaseKey, {
+    cookieOptions,
+    cookies: {
+      getAll() {
+        return parseCookieHeader(context.headers.get("Cookie") ?? "");
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => context.cookies.set(name, value, options));
+        } catch (error) {
+          // Catch error if cookies are set after response sent
+          // This can happen during auth callbacks, but the cookies are still synced through headers
+          if (error instanceof Error && error.message?.includes("response has already been sent")) {
+            // Silently ignore - cookies were already sent in response headers
+            return;
+          }
+          throw error;
+        }
+      },
+    },
+  });
   return supabase;
 };
 
